@@ -136,3 +136,5 @@ require (
 	golang.org/x/text v0.33.0
 	gorm.io/gorm v1.31.1
 )
+
+exclude github.com/clipperhouse/uax29/v2 v2.5.0
