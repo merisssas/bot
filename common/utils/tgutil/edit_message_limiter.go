@@ -29,9 +29,9 @@ type editMessageResult struct {
 }
 
 var (
-	editMessageQueue      = make(chan editMessageRequest, editMessageQueueSize)
+	editMessageQueue       = make(chan editMessageRequest, editMessageQueueSize)
 	editMessageRateLimiter = rate.NewLimiter(rate.Every(editMessageInterval), 1)
-	editMessageWorkerOnce sync.Once
+	editMessageWorkerOnce  sync.Once
 )
 
 func EditMessage(ctx *ext.Context, chatID int64, req *tg.MessagesEditMessageRequest) (*types.Message, error) {
