@@ -2,7 +2,7 @@ baseURL = 'https://sabot.unv.app/'
 title = 'Save Any Bot'
 disablePathToLower = true
 enableGitInfo = true
-defaultContentLanguage = 'zh'
+defaultContentLanguage = 'en'
 
 
 [module]
@@ -22,20 +22,10 @@ BookSearch = false
 
 [languages]
 
-[languages.zh]
-languageName = "简体中文"
-contentDir = "content/zh"
-weight = 1
-
-[[languages.zh.menu.before]]
-name = "🔗 GitHub"
-url = "https://github.com/merisssas/Bot"
-weight = 10
-
 [languages.en]
 languageName = "English"
 contentDir = "content/en"
-weight = 2
+weight = 1
 
 [[languages.en.menu.before]]
 name = "🔗 GitHub"

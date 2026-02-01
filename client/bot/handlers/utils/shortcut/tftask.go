@@ -22,7 +22,7 @@ import (
 	"github.com/rs/xid"
 )
 
-// 创建一个 tfile.TGFileTask 并添加到任务队列中, 以编辑消息的方式反馈结果
+// Create a tfile.TGFileTask and add it to the queue, returning results via message edits.
 func CreateAndAddTGFileTaskWithEdit(ctx *ext.Context, userID int64, stor storage.Storage, dirPath string, file tfile.TGFileMessage, trackMsgID int) error {
 	logger := log.FromContext(ctx)
 	user, err := database.GetUserByChatID(ctx, userID)
@@ -96,7 +96,7 @@ startCreateTask:
 	return dispatcher.EndGroups
 }
 
-// 创建一个 batchtfile.BatchTGFileTask 并添加到任务队列中, 以编辑消息的方式反馈结果
+// Create a batchtfile.BatchTGFileTask and add it to the queue, returning results via message edits.
 func CreateAndAddBatchTGFileTaskWithEdit(ctx *ext.Context, userID int64, stor storage.Storage, dirPath string, files []tfile.TGFileMessage, trackMsgID int) error {
 	logger := log.FromContext(ctx)
 	user, err := database.GetUserByChatID(ctx, userID)
@@ -183,8 +183,8 @@ func CreateAndAddBatchTGFileTaskWithEdit(ctx *ext.Context, userID int64, stor st
 		if len(afiles) <= 1 {
 			continue
 		}
-		// 对于需要新建目录的文件, 将第一个文件的文件名(去除扩展名)作为目录名
-		// 存储以第一个文件的存储为准
+		// For files that need a new directory, use the first file name (without extension) as the folder.
+		// Use the first file's storage as the album storage.
 		albumDir := strings.TrimSuffix(path.Base(afiles[0].file.Name()), path.Ext(afiles[0].file.Name()))
 		albumStor := afiles[0].storage
 		for _, af := range afiles {

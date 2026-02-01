@@ -9,7 +9,7 @@ import (
 	"github.com/gabriel-vasile/mimetype"
 )
 
-// 删除文件夹内的所有文件和子目录, 但不删除文件夹本身
+// Remove all files and subdirectories in a folder without deleting the folder itself.
 func RemoveAllInDir(dirPath string) error {
 	entries, err := os.ReadDir(dirPath)
 	if err != nil {

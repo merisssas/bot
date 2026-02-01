@@ -35,7 +35,7 @@ func (r *Rclone) Init(ctx context.Context, cfg config.StorageConfig) error {
 	r.config = *rcloneConfig
 	r.logger = log.FromContext(ctx).WithPrefix(fmt.Sprintf("rclone[%s]", r.config.Name))
 
-	// 检查 rclone 是否安装
+	// Check if rclone is installed.
 	if _, err := exec.LookPath("rclone"); err != nil {
 		return ErrRcloneNotFound
 	}

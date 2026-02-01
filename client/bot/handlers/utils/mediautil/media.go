@@ -112,8 +112,8 @@ func BuildFilenameTemplateData(message *tg.Message) map[string]string {
 		}(),
 		MsgRaw: message.GetMessage(),
 		ChatID: func() string {
-			// 如果消息是频道的(从消息链接中fetch的) 直接使用其chat id,
-			// 无论它是否是从其他来源转发的
+			// If the message is from a channel (fetched via a link), use its chat ID,
+			// regardless of whether it was forwarded.
 			if message.GetPost() {
 				peer := message.GetPeerID()
 				switch p := peer.(type) {

@@ -48,7 +48,7 @@ func ParseMessageLink(ctx *ext.Context, link string) (int64, int, error) {
 	paths := strings.Split(strings.TrimPrefix(u.Path, "/"), "/")
 
 	if cmt := u.Query().Get("comment"); cmt != "" {
-		// 频道评论的消息链接
+		// Message link from a channel comment.
 		// https://t.me/acherkrau/123?comment=2
 		chid, err := ParseChatID(ctx, paths[0])
 		if err != nil {

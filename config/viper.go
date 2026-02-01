@@ -64,12 +64,12 @@ func Init(ctx context.Context, configFile ...string) error {
 	replacer := strings.NewReplacer(".", "_")
 	viper.SetEnvKeyReplacer(replacer)
 
-	// 如果指定了配置文件路径，则使用指定的配置文件
-	// 配置文件支持传入一个 http(s) URL 地址
+	// If a config file path is specified, use that file.
+	// The config file can be provided via an http(s) URL.
 	if len(configFile) > 0 && configFile[0] != "" {
 		cfg := configFile[0]
 		if strings.HasPrefix(cfg, "http://") || strings.HasPrefix(cfg, "https://") {
-			// 	使用远程配置文件
+			// Use a remote config file.
 			resp, err := http.Get(cfg)
 			if err != nil {
 				return fmt.Errorf("failed to fetch remote config file: %w", err)
@@ -91,13 +91,13 @@ func Init(ctx context.Context, configFile ...string) error {
 	}
 
 	defaultConfigs := map[string]any{
-		// 基础配置
-		"lang":    "zh-Hans",
+		// Base config
+		"lang":    "en",
 		"workers": 3,
 		"retry":   3,
 		"threads": 4,
 
-		// 缓存配置
+		// Cache config
 		"cache.ttl":          86400,
 		"cache.num_counters": 1e5,
 		"cache.max_cost":     1e6,
@@ -109,10 +109,10 @@ func Init(ctx context.Context, configFile ...string) error {
 		"telegram.userbot.enable":  false,
 		"telegram.userbot.session": "data/usersession.db",
 
-		// 临时目录
+		// Temporary directory
 		"temp.base_path": "cache/",
 
-		// 数据库
+		// Database
 		"db.path":    "data/saveany.db",
 		"db.session": "data/session.db",
 	}

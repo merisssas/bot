@@ -22,7 +22,7 @@ var (
 )
 
 func Init(lang string) {
-	bundle = i18n.NewBundle(language.SimplifiedChinese)
+	bundle = i18n.NewBundle(language.English)
 	bundle.RegisterUnmarshalFunc("yaml", yaml.Unmarshal)
 	files, err := localesFS.ReadDir("locale")
 	if err != nil {
@@ -34,7 +34,7 @@ func Init(lang string) {
 		}
 	}
 	if lang == "" {
-		lang = "zh-Hans"
+		lang = "en"
 	}
 	localizer = i18n.NewLocalizer(bundle, lang)
 	if localizer == nil {
@@ -44,7 +44,7 @@ func Init(lang string) {
 
 func T(key i18nk.Key, templateData ...map[string]any) string {
 	if localizer == nil || bundle == nil {
-		Init("zh-Hans")
+		Init("en")
 	}
 	templateDataMap := make(map[string]any)
 	for _, data := range templateData {

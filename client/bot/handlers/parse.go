@@ -1,4 +1,4 @@
-// 处理任意文本消息, 用于通用地从外部源下载文件
+// Handle any text message to download files from external sources.
 
 package handlers
 

@@ -87,7 +87,7 @@ func getVideoMetadata(rs io.ReadSeeker) (*VideoMetadata, error) {
 		return nil, err
 	}
 
-	// 转换 duration
+	// Convert duration.
 	var durationFloat float64
 	if data.Format.Duration != "" {
 		fmt.Sscanf(data.Format.Duration, "%f", &durationFloat)

@@ -40,7 +40,7 @@ func (p *Progress) OnStart(ctx context.Context, info TaskInfo) {
 	var entities []tg.MessageEntityClass
 	if err := styling.Perform(&entityBuilder,
 		styling.Plain(i18n.T(i18nk.BotMsgProgressBatchStartPrefix, nil)),
-		styling.Code(fmt.Sprintf("%.2f MB (%d个文件)", float64(info.TotalSize())/(1024*1024), info.Count())),
+		styling.Code(fmt.Sprintf("%.2f MB (%d files)", float64(info.TotalSize())/(1024*1024), info.Count())),
 	); err != nil {
 		log.FromContext(ctx).Errorf("Failed to build entities: %s", err)
 		return
@@ -81,7 +81,7 @@ func (p *Progress) OnProgress(ctx context.Context, info TaskInfo) {
 	var entities []tg.MessageEntityClass
 	if err := styling.Perform(&entityBuilder,
 		styling.Plain(i18n.T(i18nk.BotMsgProgressBatchProcessingPrefix, nil)),
-		styling.Code(fmt.Sprintf("%.2f MB (%d个文件)", float64(info.TotalSize())/(1024*1024), info.Count())),
+		styling.Code(fmt.Sprintf("%.2f MB (%d files)", float64(info.TotalSize())/(1024*1024), info.Count())),
 		styling.Plain(i18n.T(i18nk.BotMsgProgressProcessingListPrefix, nil)),
 		func() styling.StyledTextOption {
 			var lines []string

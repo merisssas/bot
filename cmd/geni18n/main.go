@@ -99,7 +99,7 @@ func collectKeys(node map[string]any, prefix string, keys map[string]struct{}) {
 	}
 }
 
-// 转 PascalCase
+// Convert to PascalCase.
 func toPascal(key string) string {
 	parts := strings.Split(key, ".")
 	for i, p := range parts {

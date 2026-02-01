@@ -30,7 +30,7 @@ base_path = "./downloads"
 
 ### Global Configuration
 
-- `lang`: The language used by the Bot, default is `zh-CN` (Simplified Chinese). `en` is used for English.
+- `lang`: The language used by the Bot. Default is `en` for English.
 - `stream`: Whether to enable Stream mode, default is `false`. When enabled, the Bot will stream files directly to storage endpoints (if supported), without downloading them locally.
 {{< hint warning >}}
 Stream mode is very useful for deployment environments with limited disk space, but it also has some drawbacks:

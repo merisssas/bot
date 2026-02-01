@@ -7,7 +7,7 @@ import (
 type userConfig struct {
 	ID        int64    `toml:"id" mapstructure:"id" json:"id"`                      // telegram user id
 	Storages  []string `toml:"storages" mapstructure:"storages" json:"storages"`    // storage names
-	Blacklist bool     `toml:"blacklist" mapstructure:"blacklist" json:"blacklist"` // 黑名单模式, storage names 中的存储将不会被使用, 默认为白名单模式
+	Blacklist bool     `toml:"blacklist" mapstructure:"blacklist" json:"blacklist"` // Blacklist mode: storages in the list will be denied (default is allowlist mode).
 }
 
 var userIDs []int64

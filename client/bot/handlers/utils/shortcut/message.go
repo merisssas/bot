@@ -27,7 +27,7 @@ import (
 	"github.com/merisssas/Bot/pkg/tfile"
 )
 
-// 获取消息中的文件并回复等待消息, 返回等待消息, 获取到的文件
+// Get files from a message and reply with a waiting message, returning the reply and file.
 func GetFileFromMessageWithReply(ctx *ext.Context, update *ext.Update, message *tg.Message, tfileopts ...tfile.TGFileOption) (replied *types.Message,
 	file tfile.TGFileMessage, err error,
 ) {
@@ -64,7 +64,7 @@ func GetFileFromMessageWithReply(ctx *ext.Context, update *ext.Update, message *
 
 type EditMessageFunc func(text string, markup tg.ReplyMarkupClass)
 
-// 获取链接中的文件并回复等待消息
+// Get files from message links and reply with a waiting message.
 func GetFilesFromUpdateLinkMessageWithReplyEdit(ctx *ext.Context, update *ext.Update) (replied *types.Message, files []tfile.TGFileMessage, editReplied EditMessageFunc, err error) {
 	logger := log.FromContext(ctx)
 	msgLinks := re.TgMessageLinkRegexp.FindAllString(tgutil.ExtractMessageEntityUrlsText(update.EffectiveMessage.Message), -1)

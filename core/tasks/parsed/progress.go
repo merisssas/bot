@@ -19,8 +19,8 @@ import (
 )
 
 var progressUpdatesLevels = []struct {
-	size        int64 // 文件大小阈值
-	stepPercent int   // 每多少 % 更新一次
+	size        int64 // File size threshold.
+	stepPercent int   // Update every N percent.
 }{
 	{10 << 20, 100},
 	{50 << 20, 50},
@@ -73,7 +73,7 @@ func (p *Progress) OnStart(ctx context.Context, info TaskInfo) {
 		styling.Plain(i18n.T(i18nk.BotMsgProgressParsedStartPrefix, map[string]any{
 			"Site": info.Site(),
 		})),
-		styling.Code(fmt.Sprintf("%.2f MB (%d个资源)", float64(info.TotalBytes())/(1024*1024), info.TotalResources())),
+		styling.Code(fmt.Sprintf("%.2f MB (%d resources)", float64(info.TotalBytes())/(1024*1024), info.TotalResources())),
 	); err != nil {
 		log.FromContext(ctx).Errorf("Failed to build entities: %s", err)
 		return
@@ -114,7 +114,7 @@ func (p *Progress) OnProgress(ctx context.Context, info TaskInfo) {
 	var entities []tg.MessageEntityClass
 	if err := styling.Perform(&entityBuilder,
 		styling.Plain(i18n.T(i18nk.BotMsgProgressDownloadingPrefix, nil)),
-		styling.Code(fmt.Sprintf("%.2f MB (%d个文件)", float64(info.TotalBytes())/(1024*1024), info.TotalResources())),
+		styling.Code(fmt.Sprintf("%.2f MB (%d files)", float64(info.TotalBytes())/(1024*1024), info.TotalResources())),
 		styling.Plain(i18n.T(i18nk.BotMsgProgressProcessingListPrefix, nil)),
 		func() styling.StyledTextOption {
 			var lines []string
