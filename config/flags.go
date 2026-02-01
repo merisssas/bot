@@ -40,6 +40,30 @@ func RegisterFlags(cmd *cobra.Command) {
 	flags.StringSlice("parser-plugin-dirs", nil, "parser plugin directories")
 	flags.String("parser-proxy", "", "parser proxy URL")
 
+	// Directlinks configuration
+	flags.Int("directlinks-max-concurrency", 0, "directlinks: max concurrent downloads per task")
+	flags.Int("directlinks-segment-concurrency", 0, "directlinks: max concurrent segments per file")
+	flags.String("directlinks-min-multipart-size", "", "directlinks: minimum file size for multipart (e.g. 5MB)")
+	flags.String("directlinks-min-segment-size", "", "directlinks: minimum segment size (e.g. 1MB)")
+	flags.Bool("directlinks-enable-resume", false, "directlinks: enable resume support")
+	flags.Int("directlinks-max-retries", 0, "directlinks: max retries per request")
+	flags.Duration("directlinks-retry-base-delay", 0, "directlinks: retry base delay (e.g. 500ms)")
+	flags.Duration("directlinks-retry-max-delay", 0, "directlinks: retry max delay (e.g. 10s)")
+	flags.String("directlinks-limit-rate", "", "directlinks: bandwidth limit (e.g. 10M)")
+	flags.String("directlinks-burst-rate", "", "directlinks: burst bandwidth allowance (e.g. 2M)")
+	flags.Bool("directlinks-dry-run", false, "directlinks: dry run mode")
+	flags.String("directlinks-overwrite-policy", "", "directlinks: overwrite policy (overwrite|rename|skip)")
+	flags.String("directlinks-checksum-algorithm", "", "directlinks: checksum algorithm (sha256, sha1, md5)")
+	flags.String("directlinks-expected-checksum", "", "directlinks: expected checksum")
+	flags.Bool("directlinks-write-checksum-file", false, "directlinks: write checksum file")
+	flags.String("directlinks-log-file", "", "directlinks: log file path")
+	flags.String("directlinks-log-level", "", "directlinks: log level (debug|info|warn|error)")
+	flags.String("directlinks-user-agent", "", "directlinks: user agent")
+	flags.String("directlinks-proxy", "", "directlinks: proxy URL")
+	flags.String("directlinks-auth-username", "", "directlinks: basic auth username")
+	flags.String("directlinks-auth-password", "", "directlinks: basic auth password")
+	flags.Int("directlinks-default-priority", 0, "directlinks: default queue priority")
+
 	// Bind to viper
 	bindFlags(cmd)
 }
@@ -75,6 +99,30 @@ func bindFlags(cmd *cobra.Command) {
 	viper.BindPFlag("parser.plugin_enable", flags.Lookup("parser-plugin-enable"))
 	viper.BindPFlag("parser.plugin_dirs", flags.Lookup("parser-plugin-dirs"))
 	viper.BindPFlag("parser.proxy", flags.Lookup("parser-proxy"))
+
+	// Directlinks
+	viper.BindPFlag("directlinks.max_concurrency", flags.Lookup("directlinks-max-concurrency"))
+	viper.BindPFlag("directlinks.segment_concurrency", flags.Lookup("directlinks-segment-concurrency"))
+	viper.BindPFlag("directlinks.min_multipart_size", flags.Lookup("directlinks-min-multipart-size"))
+	viper.BindPFlag("directlinks.min_segment_size", flags.Lookup("directlinks-min-segment-size"))
+	viper.BindPFlag("directlinks.enable_resume", flags.Lookup("directlinks-enable-resume"))
+	viper.BindPFlag("directlinks.max_retries", flags.Lookup("directlinks-max-retries"))
+	viper.BindPFlag("directlinks.retry_base_delay", flags.Lookup("directlinks-retry-base-delay"))
+	viper.BindPFlag("directlinks.retry_max_delay", flags.Lookup("directlinks-retry-max-delay"))
+	viper.BindPFlag("directlinks.limit_rate", flags.Lookup("directlinks-limit-rate"))
+	viper.BindPFlag("directlinks.burst_rate", flags.Lookup("directlinks-burst-rate"))
+	viper.BindPFlag("directlinks.dry_run", flags.Lookup("directlinks-dry-run"))
+	viper.BindPFlag("directlinks.overwrite_policy", flags.Lookup("directlinks-overwrite-policy"))
+	viper.BindPFlag("directlinks.checksum_algorithm", flags.Lookup("directlinks-checksum-algorithm"))
+	viper.BindPFlag("directlinks.expected_checksum", flags.Lookup("directlinks-expected-checksum"))
+	viper.BindPFlag("directlinks.write_checksum_file", flags.Lookup("directlinks-write-checksum-file"))
+	viper.BindPFlag("directlinks.log_file", flags.Lookup("directlinks-log-file"))
+	viper.BindPFlag("directlinks.log_level", flags.Lookup("directlinks-log-level"))
+	viper.BindPFlag("directlinks.user_agent", flags.Lookup("directlinks-user-agent"))
+	viper.BindPFlag("directlinks.proxy", flags.Lookup("directlinks-proxy"))
+	viper.BindPFlag("directlinks.auth_username", flags.Lookup("directlinks-auth-username"))
+	viper.BindPFlag("directlinks.auth_password", flags.Lookup("directlinks-auth-password"))
+	viper.BindPFlag("directlinks.default_priority", flags.Lookup("directlinks-default-priority"))
 }
 
 func GetConfigFile(cmd *cobra.Command) string {

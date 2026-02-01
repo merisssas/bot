@@ -37,6 +37,7 @@ type TaskInfo interface {
 type FileInfo interface {
 	FileName() string
 	FileSize() int64
+	DownloadedBytes() int64
 }
 
 // ProgressTracker defines the callbacks
@@ -214,7 +215,12 @@ func (p *Progress) sendUpdate(ctx context.Context, info TaskInfo, customStatus s
 					lines = append(lines, fmt.Sprintf("...and %d more", len(processing)-limit))
 					break
 				}
-				lines = append(lines, fmt.Sprintf("• %s (%s)", elem.FileName(), FormatBytes(elem.FileSize())))
+				progress := "?"
+				if elem.FileSize() > 0 {
+					percentage := float64(elem.DownloadedBytes()) / float64(elem.FileSize()) * 100
+					progress = fmt.Sprintf("%.1f%%", percentage)
+				}
+				lines = append(lines, fmt.Sprintf("• %s (%s/%s, %s)", elem.FileName(), FormatBytes(elem.DownloadedBytes()), FormatBytes(elem.FileSize()), progress))
 			}
 			if len(lines) == 0 {
 				lines = append(lines, i18n.T(i18nk.BotMsgProgressProcessingNone, nil))

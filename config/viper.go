@@ -16,15 +16,16 @@ import (
 )
 
 type Config struct {
-	Lang         string      `toml:"lang" mapstructure:"lang" json:"lang"`
-	Workers      int         `toml:"workers" mapstructure:"workers"`
-	Retry        int         `toml:"retry" mapstructure:"retry"`
-	NoCleanCache bool        `toml:"no_clean_cache" mapstructure:"no_clean_cache" json:"no_clean_cache"`
-	Threads      int         `toml:"threads" mapstructure:"threads" json:"threads"`
-	Stream       bool        `toml:"stream" mapstructure:"stream" json:"stream"`
-	Proxy        string      `toml:"proxy" mapstructure:"proxy" json:"proxy"`
-	Aria2        aria2Config `toml:"aria2" mapstructure:"aria2" json:"aria2"`
-	Ytdlp        ytdlpConfig `toml:"ytdlp" mapstructure:"ytdlp" json:"ytdlp"`
+	Lang         string            `toml:"lang" mapstructure:"lang" json:"lang"`
+	Workers      int               `toml:"workers" mapstructure:"workers"`
+	Retry        int               `toml:"retry" mapstructure:"retry"`
+	NoCleanCache bool              `toml:"no_clean_cache" mapstructure:"no_clean_cache" json:"no_clean_cache"`
+	Threads      int               `toml:"threads" mapstructure:"threads" json:"threads"`
+	Stream       bool              `toml:"stream" mapstructure:"stream" json:"stream"`
+	Proxy        string            `toml:"proxy" mapstructure:"proxy" json:"proxy"`
+	Aria2        aria2Config       `toml:"aria2" mapstructure:"aria2" json:"aria2"`
+	Ytdlp        ytdlpConfig       `toml:"ytdlp" mapstructure:"ytdlp" json:"ytdlp"`
+	Directlinks  directlinksConfig `toml:"directlinks" mapstructure:"directlinks" json:"directlinks"`
 
 	Cache    cacheConfig             `toml:"cache" mapstructure:"cache" json:"cache"`
 	Users    []userConfig            `toml:"users" mapstructure:"users" json:"users"`
@@ -61,6 +62,31 @@ type ytdlpConfig struct {
 	LogFile               string   `toml:"log_file" mapstructure:"log_file" json:"log_file"`
 	LogLevel              string   `toml:"log_level" mapstructure:"log_level" json:"log_level"`
 	UserAgent             string   `toml:"user_agent" mapstructure:"user_agent" json:"user_agent"`
+}
+
+type directlinksConfig struct {
+	MaxConcurrency     int           `toml:"max_concurrency" mapstructure:"max_concurrency" json:"max_concurrency"`
+	SegmentConcurrency int           `toml:"segment_concurrency" mapstructure:"segment_concurrency" json:"segment_concurrency"`
+	MinMultipartSize   string        `toml:"min_multipart_size" mapstructure:"min_multipart_size" json:"min_multipart_size"`
+	MinSegmentSize     string        `toml:"min_segment_size" mapstructure:"min_segment_size" json:"min_segment_size"`
+	EnableResume       bool          `toml:"enable_resume" mapstructure:"enable_resume" json:"enable_resume"`
+	MaxRetries         int           `toml:"max_retries" mapstructure:"max_retries" json:"max_retries"`
+	RetryBaseDelay     time.Duration `toml:"retry_base_delay" mapstructure:"retry_base_delay" json:"retry_base_delay"`
+	RetryMaxDelay      time.Duration `toml:"retry_max_delay" mapstructure:"retry_max_delay" json:"retry_max_delay"`
+	LimitRate          string        `toml:"limit_rate" mapstructure:"limit_rate" json:"limit_rate"`
+	BurstRate          string        `toml:"burst_rate" mapstructure:"burst_rate" json:"burst_rate"`
+	DryRun             bool          `toml:"dry_run" mapstructure:"dry_run" json:"dry_run"`
+	OverwritePolicy    string        `toml:"overwrite_policy" mapstructure:"overwrite_policy" json:"overwrite_policy"`
+	ChecksumAlgorithm  string        `toml:"checksum_algorithm" mapstructure:"checksum_algorithm" json:"checksum_algorithm"`
+	ExpectedChecksum   string        `toml:"expected_checksum" mapstructure:"expected_checksum" json:"expected_checksum"`
+	WriteChecksumFile  bool          `toml:"write_checksum_file" mapstructure:"write_checksum_file" json:"write_checksum_file"`
+	LogFile            string        `toml:"log_file" mapstructure:"log_file" json:"log_file"`
+	LogLevel           string        `toml:"log_level" mapstructure:"log_level" json:"log_level"`
+	UserAgent          string        `toml:"user_agent" mapstructure:"user_agent" json:"user_agent"`
+	Proxy              string        `toml:"proxy" mapstructure:"proxy" json:"proxy"`
+	AuthUsername       string        `toml:"auth_username" mapstructure:"auth_username" json:"auth_username"`
+	AuthPassword       string        `toml:"auth_password" mapstructure:"auth_password" json:"auth_password"`
+	DefaultPriority    int           `toml:"default_priority" mapstructure:"default_priority" json:"default_priority"`
 }
 
 var cfg = &Config{}
@@ -146,6 +172,30 @@ func Init(ctx context.Context, configFile ...string) error {
 		"ytdlp.dry_run":              false,
 		"ytdlp.log_level":            "info",
 		"ytdlp.user_agent":           "Mozilla/5.0 (Windows NT 10.0; Win64; x64) UltimateDownloader/2.0",
+
+		// Directlinks defaults
+		"directlinks.max_concurrency":     4,
+		"directlinks.segment_concurrency": 16,
+		"directlinks.min_multipart_size":  "5MB",
+		"directlinks.min_segment_size":    "1MB",
+		"directlinks.enable_resume":       true,
+		"directlinks.max_retries":         5,
+		"directlinks.retry_base_delay":    "500ms",
+		"directlinks.retry_max_delay":     "10s",
+		"directlinks.limit_rate":          "",
+		"directlinks.burst_rate":          "2MB",
+		"directlinks.dry_run":             false,
+		"directlinks.overwrite_policy":    "rename",
+		"directlinks.checksum_algorithm":  "",
+		"directlinks.expected_checksum":   "",
+		"directlinks.write_checksum_file": false,
+		"directlinks.log_file":            "",
+		"directlinks.log_level":           "info",
+		"directlinks.user_agent":          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) UltimateDownloader/2.0",
+		"directlinks.proxy":               "",
+		"directlinks.auth_username":       "",
+		"directlinks.auth_password":       "",
+		"directlinks.default_priority":    0,
 	}
 
 	for key, value := range defaultConfigs {

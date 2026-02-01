@@ -1,11 +1,16 @@
 package directlinks
 
 import (
+	"crypto/md5"
+	"crypto/sha1"
+	"crypto/sha256"
 	"fmt"
+	"hash"
 	"mime"
 	"net/url"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -209,6 +214,7 @@ func tryDecodeGBK(s string) string {
 var (
 	illegalNameChars = regexp.MustCompile(`[<>:"/\\|?*\x00-\x1F]`)
 	reservedNames    = regexp.MustCompile(`^(?i)(CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])$`)
+	byteSizeRegex    = regexp.MustCompile(`^([0-9]+(?:\.[0-9]+)?)\s*([A-Z]{0,3})$`)
 )
 
 // SanitizeFilename ensures the filename is safe for the filesystem.
@@ -318,6 +324,57 @@ func FormatBytes(bytes int64) string {
 		exp++
 	}
 	return fmt.Sprintf("%.2f %cB", float64(bytes)/float64(div), "KMGTPE"[exp])
+}
+
+func parseByteSize(input string) (int64, bool) {
+	trimmed := strings.TrimSpace(strings.ToUpper(input))
+	if trimmed == "" {
+		return 0, false
+	}
+
+	matches := byteSizeRegex.FindStringSubmatch(trimmed)
+	if len(matches) != 3 {
+		return 0, false
+	}
+
+	value, err := strconv.ParseFloat(matches[1], 64)
+	if err != nil {
+		return 0, false
+	}
+
+	unit := matches[2]
+	multiplier := float64(1)
+	switch unit {
+	case "", "B":
+		multiplier = 1
+	case "K", "KB":
+		multiplier = 1024
+	case "M", "MB":
+		multiplier = 1024 * 1024
+	case "G", "GB":
+		multiplier = 1024 * 1024 * 1024
+	case "T", "TB":
+		multiplier = 1024 * 1024 * 1024 * 1024
+	default:
+		return 0, false
+	}
+
+	return int64(value * multiplier), true
+}
+
+func newHasher(algorithm string) (hash.Hash, error) {
+	switch strings.ToLower(strings.TrimSpace(algorithm)) {
+	case "":
+		return nil, nil
+	case "sha256":
+		return sha256.New(), nil
+	case "sha1":
+		return sha1.New(), nil
+	case "md5":
+		return md5.New(), nil
+	default:
+		return nil, fmt.Errorf("unsupported checksum algorithm: %s", algorithm)
+	}
 }
 
 // ==========================================

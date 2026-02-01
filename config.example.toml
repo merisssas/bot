@@ -61,6 +61,44 @@ log_file = ""
 log_level = "info"
 user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) UltimateDownloader/2.0"
 
+# Directlinks configuration (HTTP/HTTPS downloader)
+[directlinks]
+# Max concurrent files per directlinks task.
+max_concurrency = 4
+# Max concurrent segments per file when server supports range.
+segment_concurrency = 16
+# Multipart thresholds (human-friendly sizes).
+min_multipart_size = "5MB"
+min_segment_size = "1MB"
+# Resume partial downloads when possible.
+enable_resume = true
+# Retry policy with exponential backoff.
+max_retries = 5
+retry_base_delay = "500ms"
+retry_max_delay = "10s"
+# Bandwidth control.
+limit_rate = ""  # e.g. "10M"
+burst_rate = "2MB"
+# overwrite | rename | skip
+overwrite_policy = "rename"
+# Dry-run mode to validate metadata without downloading files.
+dry_run = false
+# Checksum verification (optional).
+checksum_algorithm = ""
+expected_checksum = ""
+write_checksum_file = false
+# Logging configuration for directlinks task.
+log_file = ""
+log_level = "info"
+user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) UltimateDownloader/2.0"
+# Optional proxy for directlinks only (overrides global proxy).
+proxy = ""
+# Optional basic auth for protected URLs.
+auth_username = ""
+auth_password = ""
+# Queue priority (higher runs first when multiple links are queued).
+default_priority = 0
+
 # Storage list
 [[storages]]
 # Unique storage name

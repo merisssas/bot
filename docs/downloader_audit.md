@@ -1,6 +1,6 @@
 # Downloader Audit & Harmonization Notes
 
-Date: 2026-02-01
+Date: 2026-02-01 (updated 2026-02-02)
 
 ## 1) Audit Scope (Repo Scan)
 
@@ -62,3 +62,26 @@ Full repo scan performed via `rg --files` to enumerate every tracked file and id
 - Implement dry-run metadata probes for CLI flows.
 - Document CLI flags + env + config overrides for downloader behaviors.
 
+## 7) Directlinks Audit Update (2026-02-02)
+
+### Folder scan (directlinks scope)
+- `core/tasks/directlinks/task.go`
+- `core/tasks/directlinks/execute.go`
+- `core/tasks/directlinks/util.go`
+- `core/tasks/directlinks/progress.go`
+- `core/tasks/directlinks/README.md`
+
+### Duplicate/conflict checks
+- No duplicate filenames within directlinks scope.
+- No conflicting function names or overlapping logic detected beyond shared helpers.
+- No dependency conflicts introduced in directlinks scope.
+
+### Core vs helper vs legacy (directlinks scope)
+- **Core**: `execute.go`, `task.go`
+- **Helper**: `util.go`, `progress.go`
+- **Docs**: `README.md`
+- **Legacy**: none identified
+
+### Unused function/module decisions
+- All directlinks helpers are actively used or part of the new “Ultimate Downloader” feature set.
+- **Decision**: KEEP all functions; no DEPRECATE/REMOVE actions required in this pass.

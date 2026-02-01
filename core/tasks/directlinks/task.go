@@ -5,10 +5,12 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"os"
 	"sync"
 	"sync/atomic"
 	"time"
 
+	"github.com/charmbracelet/log"
 	"github.com/merisssas/Bot/config"
 	"github.com/merisssas/Bot/core"
 	"github.com/merisssas/Bot/pkg/enums/tasktype"
@@ -16,19 +18,29 @@ import (
 )
 
 type File struct {
-	Name        string
-	URL         string
-	Size        int64
-	ContentType string
-	IsResumable bool
+	Name            string
+	URL             string
+	Size            int64
+	ContentType     string
+	IsResumable     bool
+	Priority        int
+	StorageFileName string
+	downloadedBytes atomic.Int64
 }
 
 func (f *File) FileName() string {
+	if f.StorageFileName != "" {
+		return f.StorageFileName
+	}
 	return f.Name
 }
 
 func (f *File) FileSize() int64 {
 	return f.Size
+}
+
+func (f *File) DownloadedBytes() int64 {
+	return f.downloadedBytes.Load()
 }
 
 var _ core.Executable = (*Task)(nil)
@@ -51,13 +63,30 @@ type Task struct {
 	processingMu    sync.RWMutex
 	failed          map[string]error // [TODO] errors for each file
 	failedMu        sync.RWMutex
+
+	logger          *log.Logger
+	logFile         *os.File
+	limiter         *rateLimiter
+	overwritePolicy overwritePolicy
+	retryPolicy     retryPolicy
+	jitter          *jitterSource
+	userAgent       string
+	authUsername    string
+	authPassword    string
+	enableResume    bool
+	segmentConfig   segmentConfig
+	pauseMu         sync.Mutex
+	paused          bool
 }
 
 // Title implements core.Exectable.
 func (t *Task) Title() string {
 	fileName := "Unknown"
 	if len(t.files) > 0 {
-		fileName = t.files[0].Name
+		fileName = t.files[0].StorageFileName
+		if fileName == "" {
+			fileName = t.files[0].Name
+		}
 	}
 	return fmt.Sprintf("[%s](%s...->%s:%s)", t.Type(), fileName, t.Storage.Name(), t.StorPath)
 }
@@ -86,7 +115,11 @@ func (t *Task) StorageName() string {
 // StoragePath implements TaskInfo.
 func (t *Task) StoragePath() string {
 	if len(t.files) == 1 {
-		return t.StorPath + "/" + t.files[0].Name
+		fileName := t.files[0].StorageFileName
+		if fileName == "" {
+			fileName = t.files[0].Name
+		}
+		return t.StorPath + "/" + fileName
 	}
 	return t.StorPath
 }
@@ -125,10 +158,12 @@ func NewTask(
 ) *Task {
 	_, ok := stor.(storage.StorageCannotStream)
 	stream := config.C().Stream && !ok
+	directCfg := config.C().Directlinks
 	files := make([]*File, 0, len(links))
 	for _, link := range links {
 		files = append(files, &File{
-			URL: link,
+			URL:      link,
+			Priority: directCfg.DefaultPriority,
 		})
 	}
 
@@ -153,7 +188,7 @@ func NewTask(
 		Timeout:   0,
 	}
 
-	return &Task{
+	task := &Task{
 		ID:           id,
 		ctx:          ctx,
 		files:        files,
@@ -168,4 +203,21 @@ func NewTask(
 		failedMu:     sync.RWMutex{},
 		totalFiles:   int64(len(files)),
 	}
+	task.retryPolicy = newRetryPolicy(directCfg.MaxRetries, directCfg.RetryBaseDelay, directCfg.RetryMaxDelay)
+	task.jitter = newJitterSource()
+	task.segmentConfig = newSegmentConfig(directCfg.SegmentConcurrency, directCfg.MinMultipartSize, directCfg.MinSegmentSize)
+	task.overwritePolicy = parseOverwritePolicy(directCfg.OverwritePolicy)
+	task.userAgent = directCfg.UserAgent
+	task.authUsername = directCfg.AuthUsername
+	task.authPassword = directCfg.AuthPassword
+	task.enableResume = directCfg.EnableResume
+	task.limiter = newRateLimiter(directCfg.LimitRate, directCfg.BurstRate)
+	task.logger, task.logFile = buildTaskLogger(ctx, directCfg.LogFile, directCfg.LogLevel)
+	if task.logger != nil {
+		task.ctx = log.WithContext(task.ctx, task.logger)
+	}
+	if task.shouldDisableStream() {
+		task.stream = false
+	}
+	return task
 }
