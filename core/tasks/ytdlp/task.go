@@ -4,8 +4,10 @@ import (
 	"context"
 	"fmt"
 	"net/url"
+	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/merisssas/Bot/core"
@@ -22,7 +24,8 @@ type Task struct {
 	CreatedAt time.Time
 
 	// Context Management
-	ctx context.Context
+	ctx    context.Context
+	cancel context.CancelFunc
 
 	// Payload
 	URLs  []string
@@ -38,6 +41,16 @@ type Task struct {
 
 	// Observer
 	Progress ProgressTracker
+
+	Config TaskConfig
+	Stats  TaskStats
+
+	statsMu sync.Mutex
+	pauseMu sync.Mutex
+	paused  bool
+	pauseCh chan struct{}
+
+	logFile *os.File
 }
 
 // NewTask creates a robust, sanitized, and validation-checked Task instance.
@@ -50,18 +63,19 @@ func NewTask(
 	stor storage.Storage,
 	storPath string,
 	progressTracker ProgressTracker,
-) *Task {
+) (*Task, error) {
 	// 1. Validation: Storage Critical Check
 	// Sistem miliaran dolar tidak boleh panic karena nil pointer.
 	// Kita Fail Fast di sini.
 	if stor == nil {
-		// Dalam production real, kita bisa return error atau assign "Blackhole Storage"
-		// Tapi untuk strictness, kita panic dengan pesan jelas untuk developer.
-		panic("CRITICAL: NewTask initialized with nil Storage. Check dependency injection.")
+		return nil, fmt.Errorf("storage is required")
 	}
 
 	// 2. Advanced Sanitization (RFC-Compliant)
 	cleanURLs := sanitizeAndValidateURLs(urls)
+	if len(cleanURLs) == 0 {
+		return nil, fmt.Errorf("no valid URLs provided")
+	}
 
 	// 3. Path Security (Jailbreak Protection)
 	// Mencegah user nakal melakukan path traversal (misal: ../../system)
@@ -70,31 +84,55 @@ func NewTask(
 	// 4. Flag Optimization
 	cleanFlags := optimizeFlags(flags)
 
+	cfg := defaultTaskConfig()
+	parsedCfg, cleanedFlags, err := applyControlFlags(cfg, cleanFlags)
+	if err != nil {
+		return nil, err
+	}
+	if err := validateConfig(parsedCfg); err != nil {
+		return nil, err
+	}
+
+	ctx, cancel := context.WithCancel(ctx)
+
 	return &Task{
 		ID:        id,
 		CreatedAt: time.Now(),
 		ctx:       ctx,
+		cancel:    cancel,
 		URLs:      cleanURLs,
-		Flags:     cleanFlags,
+		Flags:     cleanedFlags,
 		Storage:   stor,
 		StorPath:  safeStorPath,
 		Meta:      make(map[string]interface{}), // Ready for future expansion
 		Progress:  progressTracker,
-	}
+		Config:    parsedCfg,
+		Stats: TaskStats{
+			StartTime: time.Now(),
+			TotalURLs: len(cleanURLs),
+		},
+		pauseCh: make(chan struct{}),
+	}, nil
 }
 
 // Title implements core.Executable.
 func (t *Task) Title() string {
 	urlCount := len(t.URLs)
 	storageName := t.Storage.Name() // Dijamin aman karena check di NewTask
+	priorityLabel := "NRM"
+	if t.Config.Priority <= 0 {
+		priorityLabel = "LOW"
+	} else if t.Config.Priority >= 2 {
+		priorityLabel = "HIGH"
+	}
 
 	// Format Log Professional: [Type] ID | Payload -> Destination
 	if urlCount == 1 {
 		safeURL := truncateString(t.URLs[0], 50)
-		return fmt.Sprintf("[%s] %s | %s ➔ %s:%s", t.Type(), t.ID, safeURL, storageName, t.StorPath)
+		return fmt.Sprintf("[%s][%s] %s | %s ➔ %s:%s", t.Type(), priorityLabel, t.ID, safeURL, storageName, t.StorPath)
 	}
 
-	return fmt.Sprintf("[%s] %s | Batch(%d URLs) ➔ %s:%s", t.Type(), t.ID, urlCount, storageName, t.StorPath)
+	return fmt.Sprintf("[%s][%s] %s | Batch(%d URLs) ➔ %s:%s", t.Type(), priorityLabel, t.ID, urlCount, storageName, t.StorPath)
 }
 
 // Type implements core.Executable.
@@ -105,6 +143,44 @@ func (t *Task) Type() tasktype.TaskType {
 // TaskID implements core.Executable.
 func (t *Task) TaskID() string {
 	return t.ID
+}
+
+func (t *Task) Pause() {
+	t.pauseMu.Lock()
+	defer t.pauseMu.Unlock()
+	if t.paused {
+		return
+	}
+	t.paused = true
+}
+
+func (t *Task) Resume() {
+	t.pauseMu.Lock()
+	defer t.pauseMu.Unlock()
+	if !t.paused {
+		return
+	}
+	t.paused = false
+	close(t.pauseCh)
+	t.pauseCh = make(chan struct{})
+}
+
+func (t *Task) waitIfPaused(ctx context.Context) error {
+	t.pauseMu.Lock()
+	paused := t.paused
+	pauseCh := t.pauseCh
+	t.pauseMu.Unlock()
+
+	if !paused {
+		return nil
+	}
+
+	select {
+	case <-pauseCh:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
 }
 
 // ---------------------------------------------------------

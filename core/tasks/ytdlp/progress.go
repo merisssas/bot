@@ -23,8 +23,21 @@ import (
 // ProgressTracker defines the interface for tracking ytdlp task progress
 type ProgressTracker interface {
 	OnStart(ctx context.Context, task *Task)
-	OnProgress(ctx context.Context, task *Task, status string)
+	OnProgress(ctx context.Context, task *Task, status ProgressUpdate)
 	OnDone(ctx context.Context, task *Task, err error)
+}
+
+type ProgressUpdate struct {
+	Status        string
+	FilePercent   float64
+	TotalPercent  float64
+	Speed         string
+	ETA           time.Duration
+	Filename      string
+	ItemIndex     int
+	ItemTotal     int
+	FragmentIndex int
+	FragmentCount int
 }
 
 type Progress struct {
@@ -57,14 +70,19 @@ func (p *Progress) OnStart(ctx context.Context, task *Task) {
 
 	log.FromContext(ctx).Infof("🎬 Task Started: %s (MsgID: %d)", task.ID, p.msgID)
 
-	p.updateMessage(ctx, task, "Initializing connection...", 0, true)
+	p.updateMessage(ctx, task, ProgressUpdate{
+		Status:       "Initializing connection...",
+		FilePercent:  0,
+		TotalPercent: 0,
+		ItemTotal:    len(task.URLs),
+	}, 0, true)
 }
 
 // OnProgress implements ProgressTracker.
-func (p *Progress) OnProgress(ctx context.Context, task *Task, status string) {
+func (p *Progress) OnProgress(ctx context.Context, task *Task, status ProgressUpdate) {
 	// 1. Ekstrak Persentase dari string status (menggunakan Regex)
-	currentPercent := 0.0
-	matches := percentRegex.FindStringSubmatch(status)
+	currentPercent := status.TotalPercent
+	matches := percentRegex.FindStringSubmatch(status.Status)
 	if len(matches) > 1 {
 		if val, err := strconv.ParseFloat(matches[1], 64); err == nil {
 			currentPercent = val
@@ -108,7 +126,7 @@ func (p *Progress) OnProgress(ctx context.Context, task *Task, status string) {
 }
 
 // updateMessage membangun UI Telegram yang cantik dan mengirimnya
-func (p *Progress) updateMessage(ctx context.Context, task *Task, statusRaw string, percent float64, isStart bool) {
+func (p *Progress) updateMessage(ctx context.Context, task *Task, statusRaw ProgressUpdate, percent float64, isStart bool) {
 	ext := tgutil.ExtFromContext(ctx)
 	if ext == nil {
 		return
@@ -121,16 +139,17 @@ func (p *Progress) updateMessage(ctx context.Context, task *Task, statusRaw stri
 
 	// Header Icon
 	headerIcon := "📥"
-	lowerStatus := strings.ToLower(statusRaw)
+	lowerStatus := strings.ToLower(statusRaw.Status)
 	if strings.Contains(lowerStatus, "upload") || strings.Contains(lowerStatus, "transfer") {
 		headerIcon = "📤"
 	}
 
 	// Build Progress Bar Visual
-	bar := renderProgressBar(percent, progressBarWidth)
+	totalBar := renderProgressBar(statusRaw.TotalPercent, progressBarWidth)
+	fileBar := renderProgressBar(statusRaw.FilePercent, progressBarWidth)
 
 	// Bersihkan status string dari prefix yg mungkin duplikat
-	displayStatus := cleanStatus(statusRaw)
+	displayStatus := cleanStatus(statusRaw.Status)
 
 	entityBuilder := entity.Builder{}
 
@@ -151,12 +170,24 @@ func (p *Progress) updateMessage(ctx context.Context, task *Task, statusRaw stri
 			styling.Plain(fmt.Sprintf("%s Starting task... %s\n", headerIcon, spinner)),
 		)
 	} else {
+		fileLine := fmt.Sprintf("File %d/%d", statusRaw.ItemIndex, statusRaw.ItemTotal)
+		if statusRaw.Filename != "" {
+			fileLine = fmt.Sprintf("%s • %s", fileLine, statusRaw.Filename)
+		}
+		speed := statusRaw.Speed
+		if speed == "" {
+			speed = "-"
+		}
+		eta := statusRaw.ETA.Round(time.Second)
 		err = styling.Perform(&entityBuilder,
 			styling.Plain(fmt.Sprintf("%s Processing %d items %s\n", headerIcon, len(task.URLs), spinner)),
-			styling.Code(fmt.Sprintf("%s %.1f%%", bar, percent)), // The Bar
-			styling.Plain("\n\n"),
-			styling.Code(displayStatus), // The detailed status from execute.go
+			styling.Code(fmt.Sprintf("TOTAL %s %.1f%%", totalBar, statusRaw.TotalPercent)),
 			styling.Plain("\n"),
+			styling.Code(fmt.Sprintf("FILE  %s %.1f%%", fileBar, statusRaw.FilePercent)),
+			styling.Plain("\n\n"),
+			styling.Plain(fmt.Sprintf("%s\n", fileLine)),
+			styling.Code(displayStatus),
+			styling.Plain(fmt.Sprintf("\n🚀 Speed: %s | ⏳ ETA: %s\n", speed, eta)),
 		)
 	}
 

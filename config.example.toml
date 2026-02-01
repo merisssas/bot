@@ -30,6 +30,37 @@ secret = ""
 # Remove local files downloaded by Aria2 after transfer.
 remove_after_transfer = true
 
+# yt-dlp configuration
+[ytdlp]
+# Maximum retry attempts per URL download.
+max_retries = 5
+# Number of URLs to download in parallel (queue workers).
+download_concurrency = 2
+# Concurrent fragment downloads for HLS/DASH.
+fragment_concurrency = 16
+# Resume partial downloads when possible.
+enable_resume = true
+# Optional proxy for yt-dlp only (overrides global proxy).
+proxy = ""
+# External downloader (e.g. "aria2c") and extra args for segmented downloads.
+external_downloader = ""
+external_downloader_args = []
+# Bandwidth limit and throttled rate (e.g. "10M", "500K").
+limit_rate = ""
+throttled_rate = ""
+# overwrite | rename | skip
+overwrite_policy = "rename"
+# Dry-run mode to validate metadata without downloading files.
+dry_run = false
+# Checksum verification (optional).
+checksum_algorithm = ""
+expected_checksum = ""
+write_checksum_file = false
+# Logging configuration for yt-dlp task.
+log_file = ""
+log_level = "info"
+user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) UltimateDownloader/2.0"
+
 # Storage list
 [[storages]]
 # Unique storage name

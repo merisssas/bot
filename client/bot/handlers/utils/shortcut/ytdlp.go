@@ -32,7 +32,7 @@ func CreateAndAddYtdlpTaskWithEdit(ctx *ext.Context, stor storage.Storage, dirPa
 	logger.Infof("Creating yt-dlp task for %d URL(s) with %d flag(s)", len(urls), len(flags))
 
 	// Create yt-dlp task
-	task := ytdlp.NewTask(
+	task, err := ytdlp.NewTask(
 		xid.New().String(),
 		injectCtx,
 		urls,
@@ -41,6 +41,16 @@ func CreateAndAddYtdlpTaskWithEdit(ctx *ext.Context, stor storage.Storage, dirPa
 		dirPath,
 		ytdlp.NewProgress(msgID, userID),
 	)
+	if err != nil {
+		logger.Errorf("Failed to create yt-dlp task: %s", err)
+		ctx.EditMessage(userID, &tg.MessagesEditMessageRequest{
+			ID: msgID,
+			Message: i18n.T(i18nk.BotMsgCommonErrorTaskAddFailed, map[string]any{
+				"Error": err.Error(),
+			}),
+		})
+		return dispatcher.EndGroups
+	}
 
 	// Add task to queue
 	if err := core.AddTask(injectCtx, task); err != nil {

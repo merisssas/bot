@@ -24,6 +24,7 @@ type Config struct {
 	Stream       bool        `toml:"stream" mapstructure:"stream" json:"stream"`
 	Proxy        string      `toml:"proxy" mapstructure:"proxy" json:"proxy"`
 	Aria2        aria2Config `toml:"aria2" mapstructure:"aria2" json:"aria2"`
+	Ytdlp        ytdlpConfig `toml:"ytdlp" mapstructure:"ytdlp" json:"ytdlp"`
 
 	Cache    cacheConfig             `toml:"cache" mapstructure:"cache" json:"cache"`
 	Users    []userConfig            `toml:"users" mapstructure:"users" json:"users"`
@@ -40,6 +41,26 @@ type aria2Config struct {
 	Url      string `toml:"url" mapstructure:"url" json:"url"`
 	Secret   string `toml:"secret" mapstructure:"secret" json:"secret"`
 	KeepFile bool   `toml:"keep_file" mapstructure:"keep_file" json:"keep_file"`
+}
+
+type ytdlpConfig struct {
+	MaxRetries            int      `toml:"max_retries" mapstructure:"max_retries" json:"max_retries"`
+	DownloadConcurrency   int      `toml:"download_concurrency" mapstructure:"download_concurrency" json:"download_concurrency"`
+	FragmentConcurrency   int      `toml:"fragment_concurrency" mapstructure:"fragment_concurrency" json:"fragment_concurrency"`
+	EnableResume          bool     `toml:"enable_resume" mapstructure:"enable_resume" json:"enable_resume"`
+	Proxy                 string   `toml:"proxy" mapstructure:"proxy" json:"proxy"`
+	ExternalDownloader    string   `toml:"external_downloader" mapstructure:"external_downloader" json:"external_downloader"`
+	ExternalDownloaderArg []string `toml:"external_downloader_args" mapstructure:"external_downloader_args" json:"external_downloader_args"`
+	LimitRate             string   `toml:"limit_rate" mapstructure:"limit_rate" json:"limit_rate"`
+	ThrottledRate         string   `toml:"throttled_rate" mapstructure:"throttled_rate" json:"throttled_rate"`
+	OverwritePolicy       string   `toml:"overwrite_policy" mapstructure:"overwrite_policy" json:"overwrite_policy"`
+	DryRun                bool     `toml:"dry_run" mapstructure:"dry_run" json:"dry_run"`
+	ChecksumAlgorithm     string   `toml:"checksum_algorithm" mapstructure:"checksum_algorithm" json:"checksum_algorithm"`
+	ExpectedChecksum      string   `toml:"expected_checksum" mapstructure:"expected_checksum" json:"expected_checksum"`
+	WriteChecksumFile     bool     `toml:"write_checksum_file" mapstructure:"write_checksum_file" json:"write_checksum_file"`
+	LogFile               string   `toml:"log_file" mapstructure:"log_file" json:"log_file"`
+	LogLevel              string   `toml:"log_level" mapstructure:"log_level" json:"log_level"`
+	UserAgent             string   `toml:"user_agent" mapstructure:"user_agent" json:"user_agent"`
 }
 
 var cfg = &Config{}
@@ -115,6 +136,16 @@ func Init(ctx context.Context, configFile ...string) error {
 		// Database
 		"db.path":    "data/saveany.db",
 		"db.session": "data/session.db",
+
+		// yt-dlp defaults
+		"ytdlp.max_retries":          5,
+		"ytdlp.download_concurrency": 2,
+		"ytdlp.fragment_concurrency": 16,
+		"ytdlp.enable_resume":        true,
+		"ytdlp.overwrite_policy":     "rename",
+		"ytdlp.dry_run":              false,
+		"ytdlp.log_level":            "info",
+		"ytdlp.user_agent":           "Mozilla/5.0 (Windows NT 10.0; Win64; x64) UltimateDownloader/2.0",
 	}
 
 	for key, value := range defaultConfigs {
