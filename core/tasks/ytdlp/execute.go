@@ -2,6 +2,7 @@ package ytdlp
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"math"
@@ -11,6 +12,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/charmbracelet/log"
@@ -23,11 +25,13 @@ import (
 )
 
 const (
-	baseDelay    = 1 * time.Second
-	maxDelay     = 45 * time.Second
-	maxRetries   = 6
-	multiplier   = 2.0
-	jitterFactor = 0.25
+	baseDelay       = 1 * time.Second
+	maxDelay        = 45 * time.Second
+	maxRetries      = 6
+	multiplier      = 2.0
+	jitterFactor    = 0.25
+	minDiskSpace    = 500 * 1024 * 1024
+	downloadTimeout = 2 * time.Hour
 )
 
 var (
@@ -44,7 +48,10 @@ func (t *Task) Execute(ctx context.Context) error {
 		t.Progress.OnStart(ctx, t)
 	}
 
-	t.preflight(logger)
+	if err := t.preflight(logger); err != nil {
+		t.notifyError(ctx, err)
+		return err
+	}
 
 	tempDir, err := t.setupWorkspace(logger)
 	if err != nil {
@@ -116,13 +123,27 @@ func (t *Task) Execute(ctx context.Context) error {
 	return nil
 }
 
-func (t *Task) preflight(logger *log.Logger) {
+func (t *Task) preflight(logger *log.Logger) error {
 	if _, err := exec.LookPath("yt-dlp"); err != nil {
 		logger.Warn("yt-dlp binary not found in PATH; downloads will fail until installed")
 	}
 	if _, err := exec.LookPath("ffmpeg"); err != nil {
 		logger.Warn("ffmpeg not found in PATH; some post-processing may fail")
 	}
+
+	basePath := config.C().Temp.BasePath
+	if basePath == "" {
+		basePath = os.TempDir()
+	}
+	free, err := getFreeDiskSpace(basePath)
+	if err != nil {
+		logger.Warnf("Unable to check free disk space: %v", err)
+		return nil
+	}
+	if free < minDiskSpace {
+		return fmt.Errorf("insufficient disk space in %s: available %s, need %s", basePath, dlutil.FormatSize(free), dlutil.FormatSize(minDiskSpace))
+	}
+	return nil
 }
 
 type failureClass int
@@ -140,19 +161,7 @@ func classifyFailure(res *ytdlp.Result, err error) (failureClass, string) {
 	if err == nil {
 		return failUnknown, ""
 	}
-	var b strings.Builder
-	b.WriteString(strings.ToLower(err.Error()))
-	if res != nil {
-		if res.Stdout != "" {
-			b.WriteString("\n")
-			b.WriteString(strings.ToLower(res.Stdout))
-		}
-		if res.Stderr != "" {
-			b.WriteString("\n")
-			b.WriteString(strings.ToLower(res.Stderr))
-		}
-	}
-	msg := b.String()
+	msg := errorMessage(res, err)
 
 	switch {
 	case strings.Contains(msg, "sign in to confirm your age") ||
@@ -206,13 +215,19 @@ func (t *Task) downloadWithSmartRetry(ctx context.Context, tempDir string, logge
 		}
 
 		args := plan.argsForAttempt(attempt, lastClass)
-		res, cmdErr := baseCmd.Run(ctx, args...)
+		cmdCtx, cancel := context.WithTimeout(ctx, downloadTimeout)
+		res, cmdErr := baseCmd.Run(cmdCtx, args...)
+		cancel()
 		if cmdErr == nil {
 			return t.scanDownloadedFiles(tempDir, logger)
 		}
 
 		lastErr = cmdErr
 		if errors.Is(cmdErr, context.Canceled) {
+			return nil, cmdErr
+		}
+
+		if isFatalError(res, cmdErr) {
 			return nil, cmdErr
 		}
 
@@ -312,6 +327,7 @@ func (t *Task) buildDownloadPlan(logger *log.Logger, tempDir string) (*downloadP
 		"--no-mtime",
 		"--geo-bypass",
 		"--cache-dir", cacheDir,
+		"--write-info-json",
 		"--retries", "10",
 		"--fragment-retries", "50",
 		"--file-access-retries", "10",
@@ -368,6 +384,7 @@ func hasAnyFormatFlag(flags []string) bool {
 
 func (t *Task) scanDownloadedFiles(dir string, logger *log.Logger) ([]string, error) {
 	var files []string
+	var metadataFiles []string
 	err := filepath.Walk(dir, func(path string, info os.FileInfo, walkErr error) error {
 		if walkErr != nil {
 			return walkErr
@@ -378,14 +395,31 @@ func (t *Task) scanDownloadedFiles(dir string, logger *log.Logger) ([]string, er
 		if info.IsDir() {
 			return nil
 		}
+		if strings.HasSuffix(info.Name(), ".info.json") {
+			metadataFiles = append(metadataFiles, path)
+			return nil
+		}
 		if isIgnoredDownloadArtifact(info.Name()) {
 			logger.Debugf("Skipping non-primary download artifact: %s", info.Name())
+			return nil
+		}
+		if info.Size() == 0 {
+			logger.Warnf("Skipping empty artifact: %s", info.Name())
 			return nil
 		}
 		files = append(files, path)
 		return nil
 	})
-	return files, err
+	if err != nil {
+		return nil, err
+	}
+
+	if len(metadataFiles) > 0 {
+		if tracked := filesFromMetadata(metadataFiles, logger); len(tracked) > 0 {
+			return tracked, nil
+		}
+	}
+	return files, nil
 }
 
 func (t *Task) setupWorkspace(logger *log.Logger) (string, error) {
@@ -533,6 +567,7 @@ func isIgnoredDownloadArtifact(name string) bool {
 		".ytdl",
 		".tmp",
 		".temp",
+		".lock",
 		".info.json",
 		".description",
 		".annotations.xml",
@@ -625,7 +660,7 @@ func buildProgressBar(percent float64, width int) string {
 	if filled > width {
 		filled = width
 	}
-	return fmt.Sprintf("%s%s", strings.Repeat("▓", filled), strings.Repeat("░", width-filled))
+	return fmt.Sprintf("%s%s", strings.Repeat("█", filled), strings.Repeat("░", width-filled))
 }
 
 func formatSpeed(update ytdlp.ProgressUpdate) string {
@@ -651,4 +686,126 @@ func sleepWithContext(ctx context.Context, delay time.Duration) error {
 	case <-time.After(delay):
 		return nil
 	}
+}
+
+type ytDlpRequestedDownload struct {
+	Filepath string `json:"filepath"`
+	Filename string `json:"filename"`
+}
+
+type ytDlpMetadata struct {
+	Filename           string                   `json:"_filename"`
+	RequestedDownloads []ytDlpRequestedDownload `json:"requested_downloads"`
+}
+
+func errorMessage(res *ytdlp.Result, err error) string {
+	if err == nil {
+		return ""
+	}
+	var b strings.Builder
+	b.WriteString(strings.ToLower(err.Error()))
+	if res != nil {
+		if res.Stdout != "" {
+			b.WriteString("\n")
+			b.WriteString(strings.ToLower(res.Stdout))
+		}
+		if res.Stderr != "" {
+			b.WriteString("\n")
+			b.WriteString(strings.ToLower(res.Stderr))
+		}
+	}
+	return b.String()
+}
+
+func isFatalError(res *ytdlp.Result, err error) bool {
+	msg := errorMessage(res, err)
+	fatalKeywords := []string{
+		"unsupported url",
+		"login required",
+		"account terminated",
+		"video unavailable",
+		"private video",
+		"copyright",
+		"inappropriate content",
+		"geo-restricted",
+	}
+	for _, keyword := range fatalKeywords {
+		if strings.Contains(msg, keyword) {
+			return true
+		}
+	}
+	return false
+}
+
+func filesFromMetadata(metadataFiles []string, logger *log.Logger) []string {
+	tracked := make(map[string]struct{})
+	for _, metaPath := range metadataFiles {
+		content, err := os.ReadFile(metaPath)
+		if err != nil {
+			logger.Warnf("Failed to read metadata file %s: %v", metaPath, err)
+			continue
+		}
+
+		var metadata ytDlpMetadata
+		if err := json.Unmarshal(content, &metadata); err != nil {
+			logger.Warnf("Failed to parse metadata file %s: %v", metaPath, err)
+			continue
+		}
+
+		addTrackedPath(tracked, resolveMetadataPath(metaPath, metadata.Filename), logger)
+		for _, requested := range metadata.RequestedDownloads {
+			if requested.Filepath != "" {
+				addTrackedPath(tracked, resolveMetadataPath(metaPath, requested.Filepath), logger)
+				continue
+			}
+			addTrackedPath(tracked, resolveMetadataPath(metaPath, requested.Filename), logger)
+		}
+	}
+
+	if len(tracked) == 0 {
+		return nil
+	}
+
+	files := make([]string, 0, len(tracked))
+	for path := range tracked {
+		files = append(files, path)
+	}
+	return files
+}
+
+func addTrackedPath(tracked map[string]struct{}, candidate string, logger *log.Logger) {
+	if candidate == "" {
+		return
+	}
+	if isIgnoredDownloadArtifact(filepath.Base(candidate)) {
+		return
+	}
+	info, err := os.Stat(candidate)
+	if err != nil {
+		logger.Debugf("Skipping missing artifact %s: %v", candidate, err)
+		return
+	}
+	if info.Size() == 0 {
+		logger.Warnf("Skipping empty artifact: %s", candidate)
+		return
+	}
+	tracked[candidate] = struct{}{}
+}
+
+func resolveMetadataPath(metaPath, candidate string) string {
+	if candidate == "" {
+		return ""
+	}
+	if filepath.IsAbs(candidate) {
+		return candidate
+	}
+	return filepath.Join(filepath.Dir(metaPath), candidate)
+}
+
+func getFreeDiskSpace(path string) (int64, error) {
+	var stat syscall.Statfs_t
+	if err := syscall.Statfs(path, &stat); err != nil {
+		return 0, err
+	}
+	return int64(stat.Bavail) * int64(stat.Bsize), nil
 }
