@@ -208,7 +208,7 @@ func (t *Task) downloadSingle(ctx context.Context, logger *log.Logger, tempDir, 
 	cmd := t.buildCommand().
 		Output(outputTemplate).
 		RestrictFilenames().
-		AddMetadata().
+		EmbedMetadata().
 		EmbedThumbnail().
 		ResizeBuffer(true).
 		HlsUseMpegts(true).
@@ -396,8 +396,7 @@ func (t *Task) handleError(ctx context.Context, logger *log.Logger, err error) e
 
 func (t *Task) buildCommand() *ytdlp.Command {
 	cmd := ytdlp.New()
-	cmd.NoCallHome().
-		Newline()
+	cmd.Newline()
 	return cmd
 }
 

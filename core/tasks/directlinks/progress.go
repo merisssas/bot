@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/celestix/gotgproto/ext"
 	"github.com/charmbracelet/log"
 	"github.com/duke-git/lancet/v2/slice"
 	"github.com/gotd/td/telegram/message/entity"
@@ -246,7 +247,7 @@ func (p *Progress) sendUpdate(ctx context.Context, info TaskInfo, customStatus s
 	ext.EditMessage(p.chatID, req)
 }
 
-func (p *Progress) handleError(ctx context.Context, info TaskInfo, err error, logger *log.Logger, ext *tgutil.TelegramExtensions) {
+func (p *Progress) handleError(ctx context.Context, info TaskInfo, err error, logger *log.Logger, ext *ext.Context) {
 	var msg string
 
 	if errors.Is(err, context.Canceled) {

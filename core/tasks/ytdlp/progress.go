@@ -230,7 +230,7 @@ func (p *Progress) updateMessage(ctx context.Context, task *Task, statusRaw Prog
 				log.FromContext(ctx).Error("Panic recovered in progress update")
 			}
 		}()
-		if err := ext.EditMessage(p.chatID, req); err != nil {
+		if _, err := ext.EditMessage(p.chatID, req); err != nil {
 			// Ignore "Message not modified" errors specifically
 			if !strings.Contains(err.Error(), "MESSAGE_NOT_MODIFIED") {
 				log.FromContext(ctx).Debugf("Failed to update progress UI: %v", err)

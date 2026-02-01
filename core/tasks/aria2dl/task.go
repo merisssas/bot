@@ -43,7 +43,7 @@ type TaskStats struct {
 
 type Task struct {
 	ID  string `json:"id"`
-	gid string `json:"gid"`
+	gid string
 
 	ctx    context.Context    `json:"-"`
 	cancel context.CancelFunc `json:"-"`
