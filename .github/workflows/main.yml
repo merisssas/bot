@@ -1,4 +1,4 @@
-name: Replace krau/SaveAny-Bot -> merisssas/Bot
+name: replacer
 
 on:
   workflow_dispatch:
@@ -9,7 +9,6 @@ permissions:
 
 jobs:
   replace:
-    name: replace
     runs-on: ubuntu-latest
 
     steps:
@@ -18,7 +17,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Replace occurrences (text files only)
+      - name: Replace occurrences (exclude workflow files)
         shell: bash
         run: |
           set -euo pipefail
@@ -28,18 +27,20 @@ jobs:
 
           echo "Scanning for: $FROM"
 
-          # Only files that actually contain the string (git grep skips most binaries safely)
-          mapfile -t files < <(git grep -l -- "$FROM" || true)
+          # Ambil file yang match, tapi exclude .github/workflows/**
+          mapfile -t files < <(
+            git grep -l -- "$FROM" \
+              -- ':(exclude).github/workflows/**' \
+            || true
+          )
 
           if [ "${#files[@]}" -eq 0 ]; then
-            echo "No matches found. Nothing to change."
+            echo "No matches found (after exclusions). Nothing to change."
             exit 0
           fi
 
           echo "Found ${#files[@]} file(s). Replacing..."
-
           for f in "${files[@]}"; do
-            # Use ENV vars so replacement can safely contain slashes (/), ampersands (&), etc.
             FROM="$FROM" TO="$TO" perl -pi -e 's/\Q$ENV{FROM}\E/$ENV{TO}/g' "$f"
           done
 
@@ -55,5 +56,4 @@ jobs:
           title: "chore: replace krau/SaveAny-Bot -> merisssas/Bot"
           body: |
             This PR replaces all occurrences of `krau/SaveAny-Bot` with `merisssas/Bot` across the repository.
-            - Automated via workflow_dispatch
-            - Files were selected via `git grep -l`
+            Excludes `.github/workflows/**` to avoid workflow-permission restrictions.
