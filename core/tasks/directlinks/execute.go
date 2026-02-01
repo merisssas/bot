@@ -83,9 +83,6 @@ func (t *Task) validateInputs() error {
 	if t.Storage == nil {
 		return wrapError(ErrKindValidation, "storage is required", errors.New("storage is nil"))
 	}
-	if strings.TrimSpace(t.StorPath) == "" {
-		return wrapError(ErrKindValidation, "storage path is required", errors.New("storage path is empty"))
-	}
 	if len(t.files) == 0 {
 		return wrapError(ErrKindValidation, "no directlinks provided", errors.New("links list is empty"))
 	}

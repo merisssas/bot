@@ -69,11 +69,6 @@ func (p *Progress) OnProgress(ctx context.Context, task *Task, status *aria2.Sta
 		return
 	}
 
-	totalLength, _ := strconv.ParseInt(status.TotalLength, 10, 64)
-	if totalLength == 0 {
-		return
-	}
-
 	p.lastUpdate = time.Now()
 	p.updateMessage(ctx, task, status, "", false)
 }
@@ -151,12 +146,28 @@ func (p *Progress) updateMessage(ctx context.Context, task *Task, status *aria2.
 	)
 
 	if status != nil {
-		total, _ := strconv.ParseFloat(status.TotalLength, 64)
-		completed, _ := strconv.ParseFloat(status.CompletedLength, 64)
+		total, completed := getAria2Totals(status)
 		speed, _ := strconv.ParseFloat(status.DownloadSpeed, 64)
 
 		if total > 0 {
 			percent = (completed / total) * 100
+			totalStr = humanizeBytes(total)
+			bar = drawProgressBar(percent, progressWidth)
+		} else {
+			totalStr = i18n.T(i18nk.BotMsgProgressAria2UiUnknownTotal, nil)
+			bar = drawProgressBar(0, progressWidth)
+		}
+
+		if completed > 0 {
+			completedStr = humanizeBytes(completed)
+		} else {
+			completedStr = i18n.T(i18nk.BotMsgProgressAria2UiZeroCompleted, nil)
+		}
+
+		if speed > 0 {
+			speedStr = humanizeBytes(speed) + "/s"
+		} else {
+			speedStr = i18n.T(i18nk.BotMsgProgressAria2UiZeroSpeed, nil)
 		}
 
 		if speed > 0 && total > completed {
@@ -170,11 +181,6 @@ func (p *Progress) updateMessage(ctx context.Context, task *Task, status *aria2.
 		} else {
 			etaStr = i18n.T(i18nk.BotMsgProgressAria2UiEtaUnknown, nil)
 		}
-
-		totalStr = humanizeBytes(total)
-		completedStr = humanizeBytes(completed)
-		speedStr = humanizeBytes(speed) + "/s"
-		bar = drawProgressBar(percent, progressWidth)
 
 		header = i18n.T(i18nk.BotMsgProgressAria2UiDownloadingHeader, map[string]any{
 			"GID": task.GID(),
@@ -236,6 +242,37 @@ func (p *Progress) editRaw(ctx context.Context, rawHTML string) {
 		ID:      p.msgID,
 		Message: rawHTML,
 	})
+}
+
+func getAria2Totals(status *aria2.Status) (float64, float64) {
+	total, _ := strconv.ParseFloat(status.TotalLength, 64)
+	completed, _ := strconv.ParseFloat(status.CompletedLength, 64)
+
+	if total > 0 && completed > 0 {
+		return total, completed
+	}
+
+	var (
+		filesTotal     float64
+		filesCompleted float64
+	)
+
+	for _, file := range status.Files {
+		fileLength, _ := strconv.ParseFloat(file.Length, 64)
+		fileCompleted, _ := strconv.ParseFloat(file.CompletedLength, 64)
+		filesTotal += fileLength
+		filesCompleted += fileCompleted
+	}
+
+	if total == 0 && filesTotal > 0 {
+		total = filesTotal
+	}
+
+	if completed == 0 && filesCompleted > 0 {
+		completed = filesCompleted
+	}
+
+	return total, completed
 }
 
 func drawProgressBar(percent float64, width int) string {

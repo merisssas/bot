@@ -6,6 +6,9 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"path"
+	"path/filepath"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -119,7 +122,10 @@ func (t *Task) StoragePath() string {
 		if fileName == "" {
 			fileName = t.files[0].Name
 		}
-		return t.StorPath + "/" + fileName
+		if t.StorPath == "" {
+			return fileName
+		}
+		return path.Join(t.StorPath, fileName)
 	}
 	return t.StorPath
 }
@@ -193,7 +199,7 @@ func NewTask(
 		ctx:          ctx,
 		files:        files,
 		Storage:      stor,
-		StorPath:     storPath,
+		StorPath:     normalizeStorPath(storPath),
 		Progress:     progressTracker,
 		stream:       stream,
 		client:       httpClient,
@@ -220,4 +226,32 @@ func NewTask(
 		task.stream = false
 	}
 	return task
+}
+
+func normalizeStorPath(storPath string) string {
+	clean := strings.TrimSpace(storPath)
+	if clean == "" {
+		return ""
+	}
+
+	clean = filepath.Clean(clean)
+	if clean == "." || clean == "/" || clean == "\\" {
+		return ""
+	}
+
+	if volume := filepath.VolumeName(clean); volume != "" {
+		clean = strings.TrimPrefix(clean, volume)
+	}
+	if filepath.IsAbs(clean) {
+		clean = strings.TrimLeft(clean, "/\\")
+	}
+
+	if clean == "" || clean == "." {
+		return ""
+	}
+	if strings.HasPrefix(clean, "..") || strings.Contains(clean, "/..") || strings.Contains(clean, "\\..") {
+		return ""
+	}
+
+	return filepath.ToSlash(clean)
 }
