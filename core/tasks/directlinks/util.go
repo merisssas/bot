@@ -1,31 +1,83 @@
 package directlinks
 
 import (
+	"fmt"
 	"mime"
 	"net/url"
+	"path/filepath"
+	"regexp"
 	"strings"
+	"time"
 	"unicode/utf8"
 
 	"golang.org/x/text/encoding/simplifiedchinese"
 )
 
-// parseFilename extracts filename from Content-Disposition header
-// It handles multiple encoding scenarios:
-// 1. RFC 5987/RFC 2231 format: filename*=UTF-8”%E6%B5%8B%E8%AF%95.zip (preferred, checked first)
-// 2. MIME encoded-word: filename="=?UTF-8?B?5rWL6K+VLnppcA==?="
-// 3. URL-encoded: filename="%E6%B5%8B%E8%AF%95.zip"
-// 4. Plain ASCII filename
-//
-// The key fix is checking filename*= first before mime.ParseMediaType, because
-// some servers send Content-Disposition headers with invalid characters that cause
-// mime.ParseMediaType to fail, but the filename*= parameter is still valid.
-func parseFilename(contentDisposition string) string {
-	// First, try to find filename*= (RFC 5987 format, most reliable for non-ASCII)
+// ==========================================
+// FILENAME PARSING & INTELLIGENCE
+// ==========================================
+
+// ParseFilename is the smart entry point.
+// It extracts, decodes, sanitizes, and ensures the extension is correct.
+func ParseFilename(contentDisposition, rawURL, contentType string) string {
+	var name string
+
+	// 1. Try Content-Disposition (Most Authoritative)
+	if contentDisposition != "" {
+		name = parseFilenameHeader(contentDisposition)
+	}
+
+	// 2. Fallback to URL if Header failed or gave generic name
+	if name == "" || isGenericName(name) {
+		urlName := parseFilenameFromURL(rawURL)
+		if urlName != "" {
+			// Logic: If header gave us "download.php" but URL is "cool-video.mp4", prefer URL
+			if name == "" || (filepath.Ext(name) == "" && filepath.Ext(urlName) != "") {
+				name = urlName
+			}
+		}
+	}
+
+	// 3. Final Fallback: Random name if everything failed
+	if name == "" {
+		name = fmt.Sprintf("download_%d", time.Now().Unix())
+	}
+
+	// 4. Sanitize (CRITICAL SECURITY STEP)
+	// This prevents directory traversal and OS-level filename errors
+	name = SanitizeFilename(name)
+
+	// 5. Smart Extension Check
+	// If file is named "video" but Content-Type is "video/mp4", rename to "video.mp4"
+	name = ensureExtension(name, contentType)
+
+	return name
+}
+
+// isGenericName checks if the filename is useless/generic (e.g. "index.html", "get")
+func isGenericName(name string) bool {
+	lower := strings.ToLower(name)
+	base := filepath.Base(lower)
+	// Remove extension to check base name
+	base = strings.TrimSuffix(base, filepath.Ext(base))
+
+	genericNames := []string{"index", "download", "default", "file", "get", "api", "stream", "video", "watch"}
+	for _, g := range genericNames {
+		if base == g {
+			return true
+		}
+	}
+	return false
+}
+
+// parseFilenameHeader extracts filename from Content-Disposition header
+func parseFilenameHeader(contentDisposition string) string {
+	// 1. RFC 5987 (filename*=) - Highest Priority (Modern Standards)
 	if filename := parseFilenameExtended(contentDisposition); filename != "" {
 		return filename
 	}
 
-	// Try standard MIME parsing for regular filename= parameter
+	// 2. Standard MIME parsing
 	_, params, err := mime.ParseMediaType(contentDisposition)
 	if err == nil {
 		if filename := params["filename"]; filename != "" {
@@ -33,46 +85,36 @@ func parseFilename(contentDisposition string) string {
 		}
 	}
 
-	// Fallback: manual parsing if mime.ParseMediaType fails
+	// 3. Manual Fallback (Dirty Parsing for legacy servers)
 	return parseFilenameFallback(contentDisposition)
 }
 
-// parseFilenameExtended parses RFC 5987/RFC 2231 extended parameter format
-// Format: filename*=charset'language'value (e.g., UTF-8”%E6%B5%8B%E8%AF%95.zip)
+// parseFilenameExtended parses RFC 5987/RFC 2231
 func parseFilenameExtended(cd string) string {
-	// Look for filename*= (case-insensitive)
 	lower := strings.ToLower(cd)
 	idx := strings.Index(lower, "filename*=")
 	if idx == -1 {
 		return ""
 	}
 
-	// Extract the value after filename*=
 	value := cd[idx+len("filename*="):]
-
-	// Find the end of the value (next ; or end of string)
 	if endIdx := strings.Index(value, ";"); endIdx != -1 {
 		value = value[:endIdx]
 	}
 	value = strings.TrimSpace(value)
 
-	// Parse charset'language'encoded-value format
-	// Common format: UTF-8''%E6%B5%8B%E8%AF%95.zip
+	// Handle format: UTF-8''encoded_value
 	parts := strings.SplitN(value, "''", 2)
 	if len(parts) == 2 {
-		// parts[0] is charset (e.g., "UTF-8")
-		// parts[1] is percent-encoded value
-		decoded, err := url.QueryUnescape(parts[1])
-		if err == nil {
+		if decoded, err := url.QueryUnescape(parts[1]); err == nil {
 			return decoded
 		}
 	}
 
-	// Try with single quote delimiter as well (some servers use this)
+	// Handle format: charset'lang'encoded_value
 	parts = strings.SplitN(value, "'", 3)
 	if len(parts) >= 3 {
-		decoded, err := url.QueryUnescape(parts[2])
-		if err == nil {
+		if decoded, err := url.QueryUnescape(parts[2]); err == nil {
 			return decoded
 		}
 	}
@@ -80,124 +122,21 @@ func parseFilenameExtended(cd string) string {
 	return ""
 }
 
-// TryUrlQueryUnescape tries to unescape a URL-encoded string.
-//
-// If unescaping fails, it returns the original string.
-func tryUrlQueryUnescape(s string) string {
-	if decoded, err := url.QueryUnescape(s); err == nil {
-		return decoded
-	}
-	return s
-}
-
-// decodeFilenameParam decodes a filename parameter value
-// Handles MIME encoded-word, URL encoding, and GBK encoding fallback
-func decodeFilenameParam(filename string) string {
-	// Check if the filename is MIME encoded-word (e.g., =?UTF-8?B?...?=)
-	if strings.HasPrefix(filename, "=?") {
-		decoder := new(mime.WordDecoder)
-		// Some servers use "UTF8" instead of "UTF-8", create a normalized copy
-		normalizedFilename := strings.Replace(filename, "UTF8", "UTF-8", 1)
-		if decoded, err := decoder.Decode(normalizedFilename); err == nil {
-			return decoded
-		}
-	}
-
-	// Try URL decoding
-	decoded := tryUrlQueryUnescape(filename)
-
-	// Check if the result is valid UTF-8. If not, try GBK decoding.
-	// This handles cases where legacy Windows servers send GBK-encoded filenames
-	// that appear as garbled characters (e.g., "download.zip" -> "���load.zip").
-	if !utf8.ValidString(decoded) {
-		if gbkDecoded := tryDecodeGBK(decoded); gbkDecoded != "" {
-			return gbkDecoded
-		}
-	}
-
-	return decoded
-}
-
-// gbkDecoder is a reusable GBK decoder for better performance
-var gbkDecoder = simplifiedchinese.GBK.NewDecoder()
-
-// tryDecodeGBK attempts to decode a string as GBK/GB2312/GB18030 encoding
-// Returns empty string if decoding fails or result is not valid UTF-8
-func tryDecodeGBK(s string) string {
-	// GBK uses 1-2 bytes per character. Single-byte chars are 0x00-0x7F (ASCII compatible).
-	// Double-byte chars have first byte 0x81-0xFE and second byte 0x40-0xFE.
-	// Skip if string is empty or all ASCII (valid UTF-8)
-	if len(s) == 0 {
-		return ""
-	}
-
-	// Create a fresh decoder since the transform state may be corrupted
-	decoder := gbkDecoder
-	decoded, err := decoder.Bytes([]byte(s))
-	if err != nil {
-		return ""
-	}
-	result := string(decoded)
-	if utf8.ValidString(result) {
-		return result
-	}
-	return ""
-}
-
-// parseFilenameFromURL extracts filename from URL path
-// This is used as a fallback when Content-Disposition is not available
-func parseFilenameFromURL(rawURL string) string {
-	parsed, err := url.Parse(rawURL)
-	if err != nil {
-		return ""
-	}
-
-	// Get the path part and extract the last segment
-	path := parsed.Path
-	if path == "" {
-		return ""
-	}
-
-	// URL decode the path first
-	decodedPath, err := url.PathUnescape(path)
-	if err != nil {
-		decodedPath = path
-	}
-
-	// Get the last segment of the path
-	lastSlash := strings.LastIndex(decodedPath, "/")
-	if lastSlash == -1 {
-		return decodedPath
-	}
-	filename := decodedPath[lastSlash+1:]
-
-	// Remove query string if somehow still present
-	if idx := strings.Index(filename, "?"); idx != -1 {
-		filename = filename[:idx]
-	}
-
-	return filename
-}
-
-// parseFilenameFallback manually parses filename= when mime.ParseMediaType fails
+// parseFilenameFallback manually parses filename= when mime parser fails
 func parseFilenameFallback(cd string) string {
-	// Look for filename= (case-insensitive)
 	lower := strings.ToLower(cd)
 	idx := strings.Index(lower, "filename=")
 	if idx == -1 {
 		return ""
 	}
 
-	// Skip "filename=" prefix
 	value := cd[idx+len("filename="):]
-
-	// Find the end of the value
 	if endIdx := strings.Index(value, ";"); endIdx != -1 {
 		value = value[:endIdx]
 	}
 	value = strings.TrimSpace(value)
 
-	// Remove quotes if present
+	// Strip quotes
 	if len(value) >= 2 {
 		if (value[0] == '"' && value[len(value)-1] == '"') ||
 			(value[0] == '\'' && value[len(value)-1] == '\'') {
@@ -208,33 +147,214 @@ func parseFilenameFallback(cd string) string {
 	return decodeFilenameParam(value)
 }
 
-var progressUpdatesLevels = []struct {
-	size        int64 // File size threshold.
-	stepPercent int   // Update every N percent.
-}{
-	{10 << 20, 100},
-	{50 << 20, 50},
-	{200 << 20, 20},
-	{500 << 20, 10},
-}
+// ==========================================
+// DECODING & ENCODING
+// ==========================================
 
-func shouldUpdateProgress(total, downloaded int64, lastUpdatePercent int) bool {
-	if total <= 0 || downloaded <= 0 {
-		return false
-	}
-
-	percent := int((downloaded * 100) / total)
-	if percent <= lastUpdatePercent {
-		return false
-	}
-
-	step := progressUpdatesLevels[len(progressUpdatesLevels)-1].stepPercent
-	for _, lvl := range progressUpdatesLevels {
-		if total < lvl.size {
-			step = lvl.stepPercent
-			break
+func decodeFilenameParam(filename string) string {
+	// MIME Word Decoder (=?UTF-8?B?...)
+	if strings.HasPrefix(filename, "=?") {
+		decoder := new(mime.WordDecoder)
+		normalized := strings.Replace(filename, "UTF8", "UTF-8", 1) // Fix common server bug
+		if decoded, err := decoder.Decode(normalized); err == nil {
+			return decoded
 		}
 	}
 
-	return percent >= lastUpdatePercent+step
+	decoded := tryUrlQueryUnescape(filename)
+
+	// Fallback to GBK if invalid UTF-8 (Legacy Chinese Servers)
+	if !utf8.ValidString(decoded) {
+		if gbkDecoded := tryDecodeGBK(decoded); gbkDecoded != "" {
+			return gbkDecoded
+		}
+	}
+
+	// Force clean invalid UTF-8 sequences if all else fails
+	if !utf8.ValidString(decoded) {
+		return strings.ToValidUTF8(decoded, "_")
+	}
+
+	return decoded
+}
+
+func tryUrlQueryUnescape(s string) string {
+	if decoded, err := url.QueryUnescape(s); err == nil {
+		return decoded
+	}
+	return s
+}
+
+var gbkDecoder = simplifiedchinese.GBK.NewDecoder()
+
+func tryDecodeGBK(s string) string {
+	if len(s) == 0 {
+		return ""
+	}
+	decoded, err := gbkDecoder.Bytes([]byte(s))
+	if err != nil {
+		return ""
+	}
+	result := string(decoded)
+	if utf8.ValidString(result) {
+		return result
+	}
+	return ""
+}
+
+// ==========================================
+// SANITIZATION & SECURITY (CRITICAL)
+// ==========================================
+
+var (
+	illegalNameChars = regexp.MustCompile(`[<>:"/\\|?*\x00-\x1F]`)
+	reservedNames    = regexp.MustCompile(`^(?i)(CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])$`)
+)
+
+// SanitizeFilename ensures the filename is safe for the filesystem.
+// It prevents directory traversal and removes illegal characters.
+func SanitizeFilename(name string) string {
+	// 1. URL Decode just in case
+	if res, err := url.QueryUnescape(name); err == nil {
+		name = res
+	}
+
+	// 2. Remove Path Separators (Prevent Directory Traversal attacks)
+	name = filepath.Base(name)
+	if name == "." || name == "/" || name == "\\" {
+		name = "download_file"
+	}
+
+	// 3. Replace Illegal Characters with Underscore
+	name = illegalNameChars.ReplaceAllString(name, "_")
+
+	// 4. Check for Windows Reserved Names (CON, NUL, etc.)
+	// These names cause OS errors on Windows even with extensions (e.g. con.txt)
+	if reservedNames.MatchString(strings.TrimSuffix(name, filepath.Ext(name))) {
+		name = "_" + name
+	}
+
+	// 5. Trim Spaces and Dots from ends (Windows doesn't like trailing dots)
+	name = strings.Trim(name, " .")
+
+	// 6. Max Length Check (255 is standard max)
+	if len(name) > 250 {
+		ext := filepath.Ext(name)
+		if len(ext) > 10 {
+			ext = ""
+		}
+		name = name[:250-len(ext)] + ext
+	}
+
+	if name == "" {
+		return "unnamed_file"
+	}
+
+	return name
+}
+
+// ensureExtension adds an extension based on Content-Type if missing
+func ensureExtension(name, contentType string) string {
+	if contentType == "" {
+		return name
+	}
+
+	// If it already has a valid-looking extension, trust it
+	ext := filepath.Ext(name)
+	if ext != "" && len(ext) <= 6 {
+		// Extra check: prevent .php or .html if content type is clearly video
+		isMedia := strings.Contains(contentType, "video") || strings.Contains(contentType, "audio") || strings.Contains(contentType, "image")
+		isScriptExt := strings.EqualFold(ext, ".php") || strings.EqualFold(ext, ".html") || strings.EqualFold(ext, ".asp") || strings.EqualFold(ext, ".jsp")
+
+		if !(isMedia && isScriptExt) {
+			return name
+		}
+	}
+
+	// Clean content type (remove charset etc)
+	mediaType, _, err := mime.ParseMediaType(contentType)
+	if err != nil {
+		mediaType = contentType
+	}
+
+	// Find extensions from OS MIME database
+	extensions, _ := mime.ExtensionsByType(mediaType)
+	if len(extensions) > 0 {
+		return strings.TrimSuffix(name, ext) + extensions[0]
+	}
+
+	return name
+}
+
+// parseFilenameFromURL extracts filename from URL path
+func parseFilenameFromURL(rawURL string) string {
+	parsed, err := url.Parse(rawURL)
+	if err != nil {
+		return ""
+	}
+	path := parsed.Path
+	if path == "" || path == "/" {
+		return ""
+	}
+	decodedPath, err := url.PathUnescape(path)
+	if err != nil {
+		decodedPath = path
+	}
+	return filepath.Base(decodedPath)
+}
+
+// ==========================================
+// FORMATTING HELPERS
+// ==========================================
+
+func FormatBytes(bytes int64) string {
+	const unit = 1024
+	if bytes < unit {
+		return fmt.Sprintf("%d B", bytes)
+	}
+	div, exp := int64(unit), 0
+	for n := bytes / unit; n >= unit; n /= unit {
+		div *= unit
+		exp++
+	}
+	return fmt.Sprintf("%.2f %cB", float64(bytes)/float64(div), "KMGTPE"[exp])
+}
+
+// ==========================================
+// PROGRESS LOGIC
+// ==========================================
+
+// shouldUpdateProgress uses both percentage AND time to prevent log spam
+// while ensuring updates happen for slow connections.
+func shouldUpdateProgress(total, downloaded int64, lastUpdatePercent int, lastUpdateTime time.Time) (bool, int) {
+	if total <= 0 || downloaded <= 0 {
+		return false, lastUpdatePercent
+	}
+
+	currentPercent := int((downloaded * 100) / total)
+
+	// 1. Always update if finished
+	if currentPercent == 100 && lastUpdatePercent != 100 {
+		return true, 100
+	}
+
+	// 2. Time-based Throttling
+	// Prevent updates faster than once every 2 seconds
+	if time.Since(lastUpdateTime) < 2*time.Second {
+		return false, lastUpdatePercent
+	}
+
+	// 3. Percentage-based Steps (Adaptive)
+	// For huge files (>500MB), update every 1%
+	// For small files, update every 5%
+	step := 5
+	if total > 500*1024*1024 {
+		step = 1
+	}
+
+	if currentPercent >= lastUpdatePercent+step {
+		return true, currentPercent
+	}
+
+	return false, lastUpdatePercent
 }

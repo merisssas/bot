@@ -3,9 +3,11 @@ package directlinks
 import (
 	"context"
 	"fmt"
+	"net"
 	"net/http"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/merisssas/Bot/config"
 	"github.com/merisssas/Bot/core"
@@ -14,9 +16,11 @@ import (
 )
 
 type File struct {
-	Name string
-	URL  string
-	Size int64
+	Name        string
+	URL         string
+	Size        int64
+	ContentType string
+	IsResumable bool
 }
 
 func (f *File) FileName() string {
@@ -37,7 +41,7 @@ type Task struct {
 	StorPath string
 	Progress ProgressTracker
 
-	client          *http.Client // [TODO] parallel download
+	client          *http.Client
 	stream          bool
 	totalBytes      int64            // total bytes to download
 	downloadedBytes atomic.Int64     // downloaded bytes
@@ -46,11 +50,16 @@ type Task struct {
 	processing      map[string]*File // {"url": File}
 	processingMu    sync.RWMutex
 	failed          map[string]error // [TODO] errors for each file
+	failedMu        sync.RWMutex
 }
 
 // Title implements core.Exectable.
 func (t *Task) Title() string {
-	return fmt.Sprintf("[%s](%s...->%s:%s)", t.Type(), t.files[0].Name, t.Storage.Name(), t.StorPath)
+	fileName := "Unknown"
+	if len(t.files) > 0 {
+		fileName = t.files[0].Name
+	}
+	return fmt.Sprintf("[%s](%s...->%s:%s)", t.Type(), fileName, t.Storage.Name(), t.StorPath)
 }
 
 // DownloadedBytes implements TaskInfo.
@@ -100,6 +109,12 @@ func (t *Task) TaskID() string {
 	return t.ID
 }
 
+func (t *Task) RecordFailure(url string, err error) {
+	t.failedMu.Lock()
+	defer t.failedMu.Unlock()
+	t.failed[url] = err
+}
+
 func NewTask(
 	id string,
 	ctx context.Context,
@@ -116,6 +131,28 @@ func NewTask(
 			URL: link,
 		})
 	}
+
+	transport := &http.Transport{
+		Proxy: http.ProxyFromEnvironment,
+		DialContext: (&net.Dialer{
+			Timeout:   30 * time.Second,
+			KeepAlive: 30 * time.Second,
+		}).DialContext,
+		ForceAttemptHTTP2:     true,
+		MaxIdleConns:          1000,
+		MaxIdleConnsPerHost:   100,
+		IdleConnTimeout:       90 * time.Second,
+		TLSHandshakeTimeout:   10 * time.Second,
+		ResponseHeaderTimeout: 30 * time.Second,
+		ExpectContinueTimeout: 1 * time.Second,
+		DisableCompression:    true,
+	}
+
+	httpClient := &http.Client{
+		Transport: transport,
+		Timeout:   0,
+	}
+
 	return &Task{
 		ID:           id,
 		ctx:          ctx,
@@ -124,10 +161,11 @@ func NewTask(
 		StorPath:     storPath,
 		Progress:     progressTracker,
 		stream:       stream,
-		client:       http.DefaultClient,
+		client:       httpClient,
 		processing:   make(map[string]*File),
 		processingMu: sync.RWMutex{},
 		failed:       make(map[string]error),
+		failedMu:     sync.RWMutex{},
 		totalFiles:   int64(len(files)),
 	}
 }
