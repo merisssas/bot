@@ -11,17 +11,6 @@ insecure_skip_verify = false # 是否跳过 HTTPS 证书校验（仅在不安全
 # yt-dlp 最大并发下载数
 max_concurrent_downloads = 3
 
-[ytdlp.proxy]
-# 是否为 YouTube 启用 GitHub 代理池
-enable = false
-# 代理列表来源（需为 GitHub/raw.githubusercontent.com）
-sources = [
-  "https://raw.githubusercontent.com/TheSpeedX/PROXY-List/master/http.txt",
-  "https://raw.githubusercontent.com/TheSpeedX/PROXY-List/master/socks5.txt",
-]
-# 代理列表刷新间隔（分钟）
-refresh_minutes = 30
-
 [user_sync]
 # 是否删除数据库中不存在于配置文件里的用户
 delete_missing = false

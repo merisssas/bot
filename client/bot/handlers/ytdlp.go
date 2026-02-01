@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"fmt"
 	"net/url"
 	"strings"
 
@@ -12,12 +11,9 @@ import (
 	"github.com/merisssas/bot/client/bot/handlers/utils/msgelem"
 	"github.com/merisssas/bot/common/i18n"
 	"github.com/merisssas/bot/common/i18n/i18nk"
-	"github.com/merisssas/bot/common/utils/dlutil"
 	"github.com/merisssas/bot/config"
-	ytdlptask "github.com/merisssas/bot/core/tasks/ytdlp"
 	"github.com/merisssas/bot/pkg/enums/tasktype"
 	"github.com/merisssas/bot/pkg/tcbdata"
-	"github.com/merisssas/bot/pkg/ytdlpcookie"
 	"github.com/merisssas/bot/storage"
 )
 
@@ -80,37 +76,6 @@ func handleYtdlpCmd(ctx *ext.Context, update *ext.Update) error {
 
 	logger.Debugf("Preparing yt-dlp download for %d URL(s) with %d flag(s)", len(urls), len(flags))
 
-	if len(urls) == 1 && !hasFormatFlag(flags) {
-		var cookiePath string
-		if path, ok := ytdlpcookie.ExistsForUser(userID); ok {
-			cookiePath = path
-		}
-		choices, err := ytdlptask.FetchFormatChoices(ctx, urls[0], cookiePath)
-		if err != nil {
-			logger.Warnf("Failed to fetch yt-dlp formats: %v", err)
-		} else {
-			qualityOptions := make([]tcbdata.YtdlpQualityChoice, 0, len(choices))
-			for _, choice := range choices {
-				label := formatChoiceLabel(choice, choice.EstimatedSize)
-				qualityOptions = append(qualityOptions, tcbdata.YtdlpQualityChoice{
-					Label:         label,
-					URLs:          urls,
-					Flags:         append(flags, choice.Flags...),
-					EstimatedSize: choice.EstimatedSize,
-				})
-			}
-			markup, err := msgelem.BuildYtdlpQualityKeyboard(qualityOptions)
-			if err != nil {
-				logger.Warnf("Failed to build yt-dlp quality keyboard: %v", err)
-			} else {
-				ctx.Reply(update, ext.ReplyTextString(i18n.T(i18nk.BotMsgYtdlpSelectQuality, nil)), &ext.ReplyOpts{
-					Markup: markup,
-				})
-				return dispatcher.EndGroups
-			}
-		}
-	}
-
 	// Build storage selection keyboard
 	markup, err := msgelem.BuildAddSelectStorageKeyboard(storage.GetUserStorages(ctx, userID), tcbdata.Add{
 		TaskType:   tasktype.TaskTypeYtdlp,
@@ -128,16 +93,6 @@ func handleYtdlpCmd(ctx *ext.Context, update *ext.Update) error {
 	})
 
 	return dispatcher.EndGroups
-}
-
-func hasFormatFlag(flags []string) bool {
-	for _, flag := range flags {
-		switch flag {
-		case "-f", "--format":
-			return true
-		}
-	}
-	return false
 }
 
 func applyYtdlpUserSettings(userID int64, flags []string) []string {
@@ -158,35 +113,4 @@ func hasSponsorBlockFlag(flags []string) bool {
 		}
 	}
 	return false
-}
-
-func formatChoiceLabel(choice ytdlptask.FormatChoice, size int64) string {
-	label := choiceLabel(choice)
-	sizeLabel := ""
-	if size > 0 {
-		sizeLabel = dlutil.FormatSize(size)
-	}
-	return formatChoiceLabelWithSize(label, sizeLabel)
-}
-
-func choiceLabel(choice ytdlptask.FormatChoice) string {
-	if choice.IsAudioOnly {
-		return i18n.T(i18nk.BotMsgYtdlpQualityAudioOnlyBest, nil)
-	}
-	extras := ""
-	if len(choice.Extras) > 0 {
-		extras = " " + strings.Join(choice.Extras, " ")
-	}
-	return i18n.T(i18nk.BotMsgYtdlpQualityVideo, map[string]any{
-		"Resolution": fmt.Sprintf("%dp", choice.Height),
-		"Extras":     extras,
-		"Ext":        strings.ToUpper(choice.Extension),
-	})
-}
-
-func formatChoiceLabelWithSize(label, size string) string {
-	if size == "" {
-		return label
-	}
-	return fmt.Sprintf("%s | %s", label, size)
 }

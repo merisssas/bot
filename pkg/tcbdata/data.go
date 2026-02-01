@@ -12,8 +12,6 @@ const (
 	TypeSetDefault = "setdefault"
 	TypeConfig     = "config"
 	TypeCancel     = "cancel"
-	TypeYtdlpQual  = "ytdlpqual"
-	TypeYtdlpSend  = "ytdlpsend"
 )
 
 // type TaskDataTGFiles struct {
@@ -61,17 +59,4 @@ type Add struct {
 type SetDefaultStorage struct {
 	StorageName string
 	DirID       uint
-}
-
-type YtdlpQualityChoice struct {
-	Label         string
-	URLs          []string
-	Flags         []string
-	EstimatedSize int64
-}
-
-type YtdlpSend struct {
-	URLs          []string
-	Flags         []string
-	EstimatedSize int64
 }

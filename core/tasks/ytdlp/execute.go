@@ -178,6 +178,11 @@ func (t *Task) buildArguments(ctx context.Context, logger *log.Logger) ([]string
 		"--no-playlist",
 		"--geo-bypass",
 		"--ignore-errors",
+		"--retries", "10",
+		"--fragment-retries", "10",
+		"--file-access-retries", "10",
+		"--retry-sleep", "1:30",
+		"--socket-timeout", "30",
 		"--concurrent-fragments", "4",
 		"--add-metadata",
 		"--embed-thumbnail",
@@ -195,8 +200,7 @@ func (t *Task) buildArguments(ctx context.Context, logger *log.Logger) ([]string
 		}
 	}
 	if !userHasFormat {
-		args = append(args, "-f", "bv*[ext=mp4]+ba[ext=m4a]/b[ext=mp4] / bv*+ba/b")
-		args = append(args, "--merge-output-format", "mp4")
+		args = append(args, "-f", "best")
 	}
 
 	if t.Cookie != "" {
@@ -212,7 +216,6 @@ func (t *Task) buildArguments(ctx context.Context, logger *log.Logger) ([]string
 		args = append(args, "--convert-thumbnails", "jpg")
 	}
 
-	args = appendProxyArgs(ctx, logger, args, t.URLs, safeFlags)
 	args = append(args, safeFlags...)
 	args = append(args, t.URLs...)
 	return args, nil
