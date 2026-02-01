@@ -74,9 +74,11 @@ jobs:
           # Update semua dependency ke versi terbaru
           go get -u -t ./...
           
-          # Sync Go Version di go.mod
+          # --- FIX: Ambil versi Go ke Variabel Shell ---
           CURRENT_GO=$(go version | awk '{print $3}' | sed 's/go//' | cut -d. -f1,2)
-          echo "GO_VERSION=$CURRENT_GO" >> $GITHUB_ENV
+          echo "Detected Go Version: $CURRENT_GO"
+          
+          # Sync Go Version di go.mod
           go mod edit -go=$CURRENT_GO || true
           
           # Rapikan format code
@@ -86,15 +88,28 @@ jobs:
           # 2. Update Dockerfile (Alpine & Go Base Image)
           if [ -f Dockerfile ]; then
              echo "🐳 Checking Dockerfile updates..."
-             # Update versi Go di Dockerfile
-             sed -i -E "s/(FROM golang:)[0-9]+\.[0-9]+/\1${{ env.GO_VERSION }}/g" Dockerfile
              
-             # Update versi Alpine di Dockerfile
-             LATEST_ALPINE=$(curl -s https://alpinelinux.org/releases.json | jq -r '.latest_stable.branch' | sed 's/v//')
-             if [ -n "$LATEST_ALPINE" ]; then
-                sed -i -E "s/alpine:[0-9]+\.[0-9]+/alpine:$LATEST_ALPINE/g" Dockerfile
-                sed -i -E "s/alpine[0-9]+\.[0-9]+/alpine$LATEST_ALPINE/g" Dockerfile
+             # --- FIX: Gunakan variabel shell $CURRENT_GO ---
+             sed -i -E "s/(FROM golang:)[0-9]+\.[0-9]+/\1$CURRENT_GO/g" Dockerfile
+             
+             # --- FIX: Error Handling untuk API Alpine ---
+             echo "🌐 Fetching latest Alpine version..."
+             if JSON_DATA=$(curl -sf https://alpinelinux.org/releases.json); then
+                LATEST_ALPINE=$(echo "$JSON_DATA" | jq -r '.latest_stable.branch' | sed 's/v//')
+                
+                if [ -n "$LATEST_ALPINE" ] && [ "$LATEST_ALPINE" != "null" ]; then
+                   echo "✅ Found Alpine version: $LATEST_ALPINE"
+                   sed -i -E "s/alpine:[0-9]+\.[0-9]+/alpine:$LATEST_ALPINE/g" Dockerfile
+                   sed -i -E "s/alpine[0-9]+\.[0-9]+/alpine$LATEST_ALPINE/g" Dockerfile
+                else
+                   echo "⚠️ Failed to parse Alpine version via jq. Skipping Alpine update."
+                fi
+             else
+                echo "⚠️ Failed to connect to alpinelinux.org. Skipping Alpine update."
              fi
+             
+             echo "📄 Debug: Dockerfile Header (First 5 lines):"
+             head -n 5 Dockerfile
           fi
 
       - name: Verify Builds (Safety Check)
@@ -113,7 +128,7 @@ jobs:
           if [[ -n $(git status -s) ]]; then
             echo "📦 Updates found. Pushing back to repo..."
             git add .
-            # [skip ci] SANGAT PENTING: Mencegah infinite loop (agar commit bot tidak memicu workflow ini lagi)
+            # [skip ci] SANGAT PENTING: Mencegah infinite loop
             git commit -m "chore: auto-update dependencies & format [skip ci]"
             git push
           else
