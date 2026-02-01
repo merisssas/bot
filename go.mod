@@ -138,3 +138,5 @@ require (
 )
 
 exclude github.com/clipperhouse/uax29/v2 v2.5.0
+
+replace github.com/clipperhouse/displaywidth => github.com/clipperhouse/displaywidth v0.8.0
