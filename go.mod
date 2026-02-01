@@ -12,7 +12,7 @@ require (
 	github.com/charmbracelet/log v0.4.2
 	github.com/duke-git/lancet/v2 v2.3.8
 	github.com/dustin/go-humanize v1.0.1
-	github.com/gabriel-vasile/mimetype v1.4.12
+	github.com/gabriel-vasile/mimetype v1.4.13
 	github.com/goccy/go-yaml v1.19.2
 	github.com/gotd/contrib v0.21.1
 	github.com/gotd/td v0.138.0
