@@ -1,4 +1,4 @@
-# SaveAny-Bot Agent Guidelines
+# Teleload Agent Guidelines
 
 This document provides essential information for AI coding agents working on the SaveAny-Bot project.
 
