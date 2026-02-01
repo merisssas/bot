@@ -87,9 +87,16 @@ func (p *Progress) OnProgress(ctx context.Context, task *Task, status string) {
 			p.mu.Unlock()
 			return
 		}
-		// If merely a percentage update, skip based on time
-		p.mu.Unlock()
-		return
+		lowerStatus := strings.ToLower(status)
+		if strings.Contains(lowerStatus, "%") &&
+			!strings.Contains(lowerStatus, "error") &&
+			!strings.Contains(lowerStatus, "finished") &&
+			!strings.Contains(lowerStatus, "upload") &&
+			!strings.Contains(lowerStatus, "transfer") &&
+			!strings.Contains(lowerStatus, "post") {
+			p.mu.Unlock()
+			return
+		}
 	}
 
 	p.lastUpdate = now

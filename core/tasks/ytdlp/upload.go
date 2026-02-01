@@ -100,6 +100,9 @@ func (t *Task) uploadFileToChat(ctx context.Context, tctx *ext.Context, peer tg.
 	if err != nil {
 		return fmt.Errorf("failed to send file %s to telegram: %w", filename, err)
 	}
+	if t.Progress != nil {
+		t.Progress.OnProgress(ctx, t, fmt.Sprintf("Uploaded: %s", filename))
+	}
 	return nil
 }
 

@@ -7,8 +7,10 @@ import (
 	"math"
 	"math/rand"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/charmbracelet/log"
@@ -22,10 +24,15 @@ import (
 
 const (
 	baseDelay    = 1 * time.Second
-	maxDelay     = 30 * time.Second
-	maxRetries   = 5
+	maxDelay     = 45 * time.Second
+	maxRetries   = 6
 	multiplier   = 2.0
-	jitterFactor = 0.2
+	jitterFactor = 0.25
+)
+
+var (
+	rngMu sync.Mutex
+	rng   = rand.New(rand.NewSource(time.Now().UnixNano()))
 )
 
 // Execute implements core.Executable with resilient processing.
@@ -36,6 +43,8 @@ func (t *Task) Execute(ctx context.Context) error {
 	if t.Progress != nil {
 		t.Progress.OnStart(ctx, t)
 	}
+
+	t.preflight(logger)
 
 	tempDir, err := t.setupWorkspace(logger)
 	if err != nil {
@@ -107,15 +116,76 @@ func (t *Task) Execute(ctx context.Context) error {
 	return nil
 }
 
+func (t *Task) preflight(logger *log.Logger) {
+	if _, err := exec.LookPath("yt-dlp"); err != nil {
+		logger.Warn("yt-dlp binary not found in PATH; downloads will fail until installed")
+	}
+	if _, err := exec.LookPath("ffmpeg"); err != nil {
+		logger.Warn("ffmpeg not found in PATH; some post-processing may fail")
+	}
+}
+
+type failureClass int
+
+const (
+	failUnknown failureClass = iota
+	failAuthRequired
+	failRateLimited
+	failSignatureNsig
+	failPostProcess
+	failTransientNetwork
+)
+
+func classifyFailure(res *ytdlp.Result, err error) (failureClass, string) {
+	if err == nil {
+		return failUnknown, ""
+	}
+	var b strings.Builder
+	b.WriteString(strings.ToLower(err.Error()))
+	if res != nil {
+		if res.Stdout != "" {
+			b.WriteString("\n")
+			b.WriteString(strings.ToLower(res.Stdout))
+		}
+		if res.Stderr != "" {
+			b.WriteString("\n")
+			b.WriteString(strings.ToLower(res.Stderr))
+		}
+	}
+	msg := b.String()
+
+	switch {
+	case strings.Contains(msg, "sign in to confirm your age") ||
+		(strings.Contains(msg, "cookies") && strings.Contains(msg, "required")):
+		return failAuthRequired, "Blocked: authentication/cookies required. Provide cookies file."
+	case strings.Contains(msg, "http error 429") ||
+		strings.Contains(msg, "too many requests"):
+		return failRateLimited, "Rate-limited (HTTP 429). Switching to conservative sleep + lower concurrency."
+	case strings.Contains(msg, "nsig extraction failed") ||
+		strings.Contains(msg, "signature extraction failed"):
+		return failSignatureNsig, "Signature/nsig failed. Applying YouTube client fallback + urging yt-dlp update."
+	case strings.Contains(msg, "postprocessing") ||
+		(strings.Contains(msg, "ffmpeg") && strings.Contains(msg, "error")):
+		return failPostProcess, "Postprocess failed. Retrying with reduced post-processing to salvage media."
+	case strings.Contains(msg, "timed out") ||
+		strings.Contains(msg, "connection reset") ||
+		strings.Contains(msg, "temporary failure") ||
+		strings.Contains(msg, "http error 5"):
+		return failTransientNetwork, "Transient network error. Retrying with backoff."
+	default:
+		return failUnknown, ""
+	}
+}
+
 func (t *Task) downloadWithSmartRetry(ctx context.Context, tempDir string, logger *log.Logger) ([]string, error) {
-	args, err := t.buildArguments(ctx, logger)
+	plan, err := t.buildDownloadPlan(logger, tempDir)
 	if err != nil {
 		return nil, err
 	}
 
 	baseCmd := ytdlp.New().
 		SetSeparateProcessGroup(true).
-		Output(filepath.Join(tempDir, "%(title)s.%(ext)s"))
+		Output(filepath.Join(tempDir, "%(title).200B [%(id)s].%(ext)s"))
 
 	if t.Progress != nil {
 		baseCmd = baseCmd.ProgressFunc(500*time.Millisecond, func(update ytdlp.ProgressUpdate) {
@@ -127,9 +197,16 @@ func (t *Task) downloadWithSmartRetry(ctx context.Context, tempDir string, logge
 	}
 
 	var lastErr error
+	var lastClass failureClass
+	var lastHint string
 	for attempt := 1; attempt <= maxRetries; attempt++ {
 		logger.Infof("Attempt %d/%d: executing download strategy", attempt, maxRetries)
-		_, cmdErr := baseCmd.Run(ctx, args...)
+		if err := os.MkdirAll(plan.cacheDir, 0o755); err != nil {
+			logger.Warnf("Failed to ensure cache dir %s: %v", plan.cacheDir, err)
+		}
+
+		args := plan.argsForAttempt(attempt, lastClass)
+		res, cmdErr := baseCmd.Run(ctx, args...)
 		if cmdErr == nil {
 			return t.scanDownloadedFiles(tempDir, logger)
 		}
@@ -139,13 +216,36 @@ func (t *Task) downloadWithSmartRetry(ctx context.Context, tempDir string, logge
 			return nil, cmdErr
 		}
 
+		failureKind, hint := classifyFailure(res, cmdErr)
+		lastClass = failureKind
+		if hint != "" {
+			lastHint = hint
+			logger.Warn(hint)
+		}
+
+		if failureKind == failAuthRequired {
+			if lastHint != "" {
+				return nil, fmt.Errorf("%w (%s)", cmdErr, lastHint)
+			}
+			return nil, cmdErr
+		}
+
 		delay := calculateBackoff(attempt)
+		if failureKind == failRateLimited {
+			delay += 20 * time.Second
+			if delay > 2*time.Minute {
+				delay = 2 * time.Minute
+			}
+		}
 		logger.Warnf("Download failed: %v. Retrying in %s...", cmdErr, delay)
 		if err := sleepWithContext(ctx, delay); err != nil {
 			return nil, err
 		}
 	}
 
+	if lastHint != "" {
+		return nil, fmt.Errorf("exhausted all %d attempts: %w (last_hint=%s)", maxRetries, lastErr, lastHint)
+	}
 	return nil, fmt.Errorf("exhausted all %d attempts: %w", maxRetries, lastErr)
 }
 
@@ -166,59 +266,104 @@ func (t *Task) processStorageTransfer(ctx context.Context, files []string) error
 	return eg.Wait()
 }
 
-func (t *Task) buildArguments(ctx context.Context, logger *log.Logger) ([]string, error) {
+type downloadPlan struct {
+	baseArgs []string
+	userArgs []string
+	urls     []string
+	cacheDir string
+}
+
+func (p *downloadPlan) argsForAttempt(attempt int, last failureClass) []string {
+	args := make([]string, 0, len(p.baseArgs)+len(p.userArgs)+len(p.urls)+32)
+	args = append(args, p.baseArgs...)
+	args = append(args, p.userArgs...)
+
+	switch {
+	case attempt >= 2 && (last == failSignatureNsig || last == failUnknown):
+		args = append(args, "--extractor-args", "youtube:player_client=android,web")
+	case last == failRateLimited:
+		args = append(args,
+			"--sleep-requests", "1",
+			"--sleep-interval", "1",
+			"--max-sleep-interval", "5",
+			"--concurrent-fragments", "1",
+		)
+	case last == failPostProcess:
+		args = append(args, "--no-embed-subs", "--no-embed-thumbnail")
+	case last == failTransientNetwork && attempt >= 3:
+		args = append(args, "-4")
+	}
+
+	args = append(args, p.urls...)
+	return args
+}
+
+func (t *Task) buildDownloadPlan(logger *log.Logger, tempDir string) (*downloadPlan, error) {
 	safeFlags, err := sanitizeFlags(t.Flags)
 	if err != nil {
 		return nil, err
 	}
 
-	args := []string{
-		"--no-mtime",
-		"--abort-on-error",
+	cacheDir := filepath.Join(tempDir, "cache")
+
+	base := []string{
+		"--ignore-config",
 		"--no-playlist",
+		"--no-mtime",
 		"--geo-bypass",
-		"--ignore-errors",
+		"--cache-dir", cacheDir,
 		"--retries", "10",
-		"--fragment-retries", "10",
+		"--fragment-retries", "50",
 		"--file-access-retries", "10",
-		"--retry-sleep", "1:30",
-		"--socket-timeout", "30",
+		"--extractor-retries", "10",
+		"--retry-sleep", "exp=1:30:2",
 		"--concurrent-fragments", "4",
 		"--add-metadata",
-		"--embed-thumbnail",
 		"--embed-chapters",
 		"--embed-subs",
-		"--sub-langs", "en,id,all",
+		"--sub-langs", "en.*,id.*,en,id",
+		"--hls-use-mpegts",
 		"--user-agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
 	}
 
-	userHasFormat := false
-	for _, flag := range safeFlags {
-		if strings.Contains(flag, "-f") || strings.Contains(flag, "--format") {
-			userHasFormat = true
-			break
-		}
-	}
-	if !userHasFormat {
-		args = append(args, "-f", "best")
+	if !hasAnyFormatFlag(safeFlags) {
+		base = append(base,
+			"-f", "bv*[ext=mp4]+ba[ext=m4a]/b[ext=mp4]/bv*+ba/b",
+			"--merge-output-format", "mp4",
+		)
 	}
 
 	if t.Cookie != "" {
 		if _, err := os.Stat(t.Cookie); err == nil {
-			args = append(args, "--cookies", t.Cookie)
+			base = append(base, "--cookies", t.Cookie)
 		} else {
 			logger.Warn("Cookie file specified but not found, proceeding without it")
 		}
 	}
 
 	if t.UploadToChat {
-		args = append(args, "--write-thumbnail")
-		args = append(args, "--convert-thumbnails", "jpg")
+		base = append(base, "--write-thumbnail", "--convert-thumbnails", "jpg")
 	}
 
-	args = append(args, safeFlags...)
-	args = append(args, t.URLs...)
-	return args, nil
+	base = append(base, "--embed-thumbnail")
+
+	return &downloadPlan{
+		baseArgs: base,
+		userArgs: safeFlags,
+		urls:     t.URLs,
+		cacheDir: cacheDir,
+	}, nil
+}
+
+func hasAnyFormatFlag(flags []string) bool {
+	for _, f := range flags {
+		ff := strings.TrimSpace(f)
+		if ff == "-f" || strings.HasPrefix(ff, "-f=") || strings.HasPrefix(ff, "-f ") ||
+			ff == "--format" || strings.HasPrefix(ff, "--format=") || strings.HasPrefix(ff, "--format ") {
+			return true
+		}
+	}
+	return false
 }
 
 func (t *Task) scanDownloadedFiles(dir string, logger *log.Logger) ([]string, error) {
@@ -226,6 +371,9 @@ func (t *Task) scanDownloadedFiles(dir string, logger *log.Logger) ([]string, er
 	err := filepath.Walk(dir, func(path string, info os.FileInfo, walkErr error) error {
 		if walkErr != nil {
 			return walkErr
+		}
+		if info.IsDir() && filepath.Base(path) == "cache" {
+			return filepath.SkipDir
 		}
 		if info.IsDir() {
 			return nil
@@ -289,7 +437,7 @@ func (t *Task) transferFile(ctx context.Context, filePath string) error {
 	}
 
 	if t.Progress != nil {
-		t.Progress.OnProgress(ctx, t, fmt.Sprintf("Archived: %s", fileName))
+		t.Progress.OnProgress(ctx, t, fmt.Sprintf("Transferred: %s", fileName))
 	}
 	return nil
 }
@@ -366,12 +514,15 @@ func stripMatchingQuotes(value string) string {
 }
 
 func calculateBackoff(attempt int) time.Duration {
-	backoff := float64(baseDelay) * math.Pow(multiplier, float64(attempt))
+	backoff := float64(baseDelay) * math.Pow(multiplier, float64(attempt-1))
 	if backoff > float64(maxDelay) {
 		backoff = float64(maxDelay)
 	}
 
-	random := rand.Float64()*(jitterFactor*2) + (1 - jitterFactor)
+	rngMu.Lock()
+	j := rng.Float64()
+	rngMu.Unlock()
+	random := j*(jitterFactor*2) + (1 - jitterFactor)
 	return time.Duration(backoff * random)
 }
 
