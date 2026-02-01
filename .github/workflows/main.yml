@@ -1,59 +1,339 @@
-name: replacer
+name: Auto Maintain, Build & Publish
 
 on:
-  workflow_dispatch:
+  # 1. TRIGGER PUSH (Untuk Maintenance Otomatis)
+  # & TRIGGER TAG (Untuk Build Rilis)
+  push:
+    branches: 
+      - "main" 
+      - "master"
+    tags: 
+      - "v*"
+    paths-ignore:
+      - '**.md' # Hemat resource: abaikan kalau cuma edit README
 
-permissions:
-  contents: write
-  pull-requests: write
+  # 2. TRIGGER MANUAL (Khusus Build Docker)
+  workflow_dispatch:
+    inputs:
+      variant:
+        description: "Pilih varian image"
+        required: true
+        type: choice
+        default: all
+        options: [all, default, micro, pico]
+      version:
+        description: "Versi tag (kosong = auto dev-sha)"
+        required: false
+        type: string
+      push:
+        description: "Push ke registry?"
+        required: true
+        type: boolean
+        default: true
+      tag_latest:
+        description: "Tag :latest?"
+        required: true
+        type: boolean
+        default: true
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: merisssas/bot
+
+concurrency:
+  group: docker-build-${{ github.repository }}
+  cancel-in-progress: true
 
 jobs:
-  replace:
+  # ====================================================
+  # JOB 1: MAINTENANCE (BERSIH-BERSIH)
+  # Syarat: Jalan pas PUSH ke Branch (bukan Tag)
+  # ====================================================
+  maintenance:
+    # Hanya jalan kalau push biasa ke branch, BUKAN saat push Tag
+    if: github.event_name == 'push' && !startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with: { go-version: 'stable' }
+
+      - name: Auto Update & Tidy
+        run: |
+          echo "🚀 New commit detected! Starting maintenance..."
+          
+          # 1. Init & Update Go Modules
+          [ ! -f go.mod ] && go mod init "github.com/${{ github.repository }}"
+          
+          # Update semua dependency ke versi terbaru
+          go get -u -t ./...
+          
+          # --- FIX: Ambil versi Go ke Variabel Shell ---
+          CURRENT_GO=$(go version | awk '{print $3}' | sed 's/go//' | cut -d. -f1,2)
+          echo "Detected Go Version: $CURRENT_GO"
+          
+          # Sync Go Version di go.mod
+          go mod edit -go=$CURRENT_GO || true
+          
+          # Rapikan format code
+          gofmt -s -w .
+          go mod tidy
+
+          # 2. Update Dockerfile (Alpine & Go Base Image)
+          if [ -f Dockerfile ]; then
+             echo "🐳 Checking Dockerfile updates..."
+             
+             # --- FIX: Gunakan variabel shell $CURRENT_GO ---
+             sed -i -E "s/(FROM golang:)[0-9]+\.[0-9]+/\1$CURRENT_GO/g" Dockerfile
+             
+             # --- FIX: Error Handling untuk API Alpine ---
+             echo "🌐 Fetching latest Alpine version..."
+             if JSON_DATA=$(curl -sf https://alpinelinux.org/releases.json); then
+                LATEST_ALPINE=$(echo "$JSON_DATA" | jq -r '.latest_stable.branch' | sed 's/v//')
+                
+                if [ -n "$LATEST_ALPINE" ] && [ "$LATEST_ALPINE" != "null" ]; then
+                   echo "✅ Found Alpine version: $LATEST_ALPINE"
+                   sed -i -E "s/alpine:[0-9]+\.[0-9]+/alpine:$LATEST_ALPINE/g" Dockerfile
+                   sed -i -E "s/alpine[0-9]+\.[0-9]+/alpine$LATEST_ALPINE/g" Dockerfile
+                else
+                   echo "⚠️ Failed to parse Alpine version via jq. Skipping Alpine update."
+                fi
+             else
+                echo "⚠️ Failed to connect to alpinelinux.org. Skipping Alpine update."
+             fi
+             
+             echo "📄 Debug: Dockerfile Header (First 5 lines):"
+             head -n 5 Dockerfile
+          fi
+
+      - name: Verify Builds (Safety Check)
+        run: |
+          echo "🛡️ Verifying code integrity..."
+          go vet ./...
+          go build -v ./...
+          # Coba build docker test (tanpa push) untuk memastikan update alpine aman
+          if [ -f Dockerfile ]; then docker build . -t test-build:latest; fi
+
+      - name: Commit & Push Changes
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          
+          if [[ -n $(git status -s) ]]; then
+            echo "📦 Updates found. Pushing back to repo..."
+            git add .
+            # [skip ci] SANGAT PENTING: Mencegah infinite loop
+            git commit -m "chore: auto-update dependencies & format [skip ci]"
+            git push
+          else
+            echo "✅ Code is clean. No updates needed."
+          fi
+
+  # ====================================================
+  # JOB 2: BUILD & PUBLISH (PABRIK DOCKER)
+  # Syarat: Jalan pas MANUAL atau PUSH TAG
+  # ====================================================
+  prepare:
+    if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      version: ${{ steps.vars.outputs.version }}
+      major_minor: ${{ steps.vars.outputs.major_minor }}
+      short_sha: ${{ steps.vars.outputs.short_sha }}
+      build_time: ${{ steps.vars.outputs.build_time }}
+      image: ${{ steps.vars.outputs.image }}
+      want_push: ${{ steps.vars.outputs.want_push }}
+      want_latest: ${{ steps.vars.outputs.want_latest }}
+      want_variant: ${{ steps.vars.outputs.want_variant }}
+      build_matrix: ${{ steps.matrix.outputs.build_matrix }}
+      manifest_matrix: ${{ steps.matrix.outputs.manifest_matrix }}
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
-      - name: Replace occurrences (exclude workflow files)
+      - name: Compute variables
+        id: vars
         shell: bash
         run: |
           set -euo pipefail
+          SHORT_SHA="$(git rev-parse --short HEAD)"
+          BUILD_TIME="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+          IMG="${IMAGE_NAME}"
+          
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" && -n "${{ inputs.image_name }}" ]]; then
+            IMG="${{ inputs.image_name }}" 
+          fi
+          if [[ -z "$IMG" ]]; then IMG="${IMAGE_NAME}"; fi
 
-          FROM='krau/SaveAny-Bot'
-          TO='merisssas/Bot'
-
-          echo "Scanning for: $FROM"
-
-          # Ambil file yang match, tapi exclude .github/workflows/**
-          mapfile -t files < <(
-            git grep -l -- "$FROM" \
-              -- ':(exclude).github/workflows/**' \
-            || true
-          )
-
-          if [ "${#files[@]}" -eq 0 ]; then
-            echo "No matches found (after exclusions). Nothing to change."
-            exit 0
+          VERSION=""
+          if [[ "${GITHUB_REF:-}" =~ ^refs/tags/v(.+)$ ]]; then
+            VERSION="${BASH_REMATCH[1]}"
+          elif [[ "${{ github.event_name }}" == "workflow_dispatch" && -n "${{ inputs.version }}" ]]; then
+            VERSION="${{ inputs.version }}"
+            VERSION="${VERSION#v}"
+          else
+            VERSION="dev-${SHORT_SHA}"
           fi
 
-          echo "Found ${#files[@]} file(s). Replacing..."
-          for f in "${files[@]}"; do
-            FROM="$FROM" TO="$TO" perl -pi -e 's/\Q$ENV{FROM}\E/$ENV{TO}/g' "$f"
+          MAJOR_MINOR=""
+          if [[ "$VERSION" =~ ^([0-9]+)\.([0-9]+)\. ]]; then
+            MAJOR_MINOR="${BASH_REMATCH[1]}.${BASH_REMATCH[2]}"
+          fi
+
+          WANT_PUSH="true"
+          WANT_LATEST="true"
+          WANT_VARIANT="all"
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            WANT_PUSH="${{ inputs.push }}"
+            WANT_LATEST="${{ inputs.tag_latest }}"
+            WANT_VARIANT="${{ inputs.variant }}"
+          fi
+
+          echo "short_sha=$SHORT_SHA" >> "$GITHUB_OUTPUT"
+          echo "build_time=$BUILD_TIME" >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "major_minor=$MAJOR_MINOR" >> "$GITHUB_OUTPUT"
+          echo "image=$IMG" >> "$GITHUB_OUTPUT"
+          echo "want_push=$WANT_PUSH" >> "$GITHUB_OUTPUT"
+          echo "want_latest=$WANT_LATEST" >> "$GITHUB_OUTPUT"
+          echo "want_variant=$WANT_VARIANT" >> "$GITHUB_OUTPUT"
+
+      - name: Build dynamic matrices
+        id: matrix
+        shell: bash
+        run: |
+          set -euo pipefail
+          WANT_VARIANT="${{ steps.vars.outputs.want_variant }}"
+          if [[ "$WANT_VARIANT" == "all" ]]; then
+            VARIANTS=(default micro pico)
+          else
+            VARIANTS=("$WANT_VARIANT")
+          fi
+          ARCHES=(amd64 arm64)
+          BUILD_JSON='{"include":['
+          first=1
+          for v in "${VARIANTS[@]}"; do
+            for a in "${ARCHES[@]}"; do
+              platform="linux/${a}"
+              if [[ "$v" == "default" ]]; then dockerfile="./Dockerfile"; else dockerfile="./Dockerfile.${v}"; fi
+              if [[ $first -eq 0 ]]; then BUILD_JSON+=","; fi
+              first=0
+              BUILD_JSON+="{\"variant\":\"$v\",\"arch\":\"$a\",\"platform\":\"$platform\",\"dockerfile\":\"$dockerfile\"}"
+            done
           done
+          BUILD_JSON+=']}'
+          MAN_JSON='{"variant":['
+          first=1
+          for v in "${VARIANTS[@]}"; do
+            if [[ $first -eq 0 ]]; then MAN_JSON+=","; fi
+            first=0
+            MAN_JSON+="\"$v\""
+          done
+          MAN_JSON+=']}'
+          echo "build_matrix=$BUILD_JSON" >> "$GITHUB_OUTPUT"
+          echo "manifest_matrix=$MAN_JSON" >> "$GITHUB_OUTPUT"
 
-          echo "Replacement done. Showing diff:"
-          git diff --stat
-
-      - name: Create Pull Request
-        uses: peter-evans/create-pull-request@v6
+  build:
+    needs: prepare
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      matrix: ${{ fromJSON(needs.prepare.outputs.build_matrix) }}
+      fail-fast: false
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+      - if: needs.prepare.outputs.want_push == 'true'
+        uses: docker/login-action@v3
         with:
-          branch: chore/replace-krau-saveany-bot
-          delete-branch: true
-          commit-message: "chore: replace krau/SaveAny-Bot with merisssas/Bot"
-          title: "chore: replace krau/SaveAny-Bot -> merisssas/Bot"
-          body: |
-            This PR replaces all occurrences of `krau/SaveAny-Bot` with `merisssas/Bot` across the repository.
-            Excludes `.github/workflows/**` to avoid workflow-permission restrictions.
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ${{ matrix.dockerfile }}
+          platforms: ${{ matrix.platform }}
+          outputs: type=image,name=${{ env.REGISTRY }}/${{ needs.prepare.outputs.image }},push-by-digest=true,name-canonical=true,push=${{ needs.prepare.outputs.want_push }}
+          build-args: |
+            VERSION=${{ needs.prepare.outputs.version }}
+            GitCommit=${{ needs.prepare.outputs.short_sha }}
+            BuildTime=${{ needs.prepare.outputs.build_time }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          provenance: false
+          sbom: false
+      - if: needs.prepare.outputs.want_push == 'true'
+        run: |
+          mkdir -p /tmp/digests
+          echo "${{ steps.build.outputs.digest }}" > /tmp/digests/digest
+      - if: needs.prepare.outputs.want_push == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: digest-${{ matrix.variant }}-${{ matrix.arch }}
+          path: /tmp/digests/digest
+          if-no-files-found: error
+          retention-days: 1
+
+  create-manifest:
+    needs: [prepare, build]
+    runs-on: ubuntu-latest
+    permissions:
+      packages: write
+    if: needs.prepare.outputs.want_push == 'true'
+    strategy:
+      matrix: ${{ fromJSON(needs.prepare.outputs.manifest_matrix) }}
+      fail-fast: false
+    steps:
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: actions/download-artifact@v4
+        with:
+          path: /tmp/digests
+          pattern: digest-${{ matrix.variant }}-*
+          merge-multiple: false
+      - run: |
+          set -euo pipefail
+          REPO="${{ env.REGISTRY }}/${{ needs.prepare.outputs.image }}"
+          VERSION="${{ needs.prepare.outputs.version }}"
+          MAJOR_MINOR="${{ needs.prepare.outputs.major_minor }}"
+          SHA="${{ needs.prepare.outputs.short_sha }}"
+          VARIANT="${{ matrix.variant }}"
+          DIGEST_AMD64="$(cat /tmp/digests/digest-${VARIANT}-amd64/digest)"
+          DIGEST_ARM64="$(cat /tmp/digests/digest-${VARIANT}-arm64/digest)"
+          SRC_AMD64="${REPO}@${DIGEST_AMD64}"
+          SRC_ARM64="${REPO}@${DIGEST_ARM64}"
+          TAGS=()
+          if [[ "$VARIANT" == "default" ]]; then
+            if [[ "${{ github.event_name }}" != "workflow_dispatch" || "${{ needs.prepare.outputs.want_latest }}" == "true" ]]; then
+              TAGS+=("${REPO}:latest")
+            fi
+            TAGS+=("${REPO}:${VERSION}")
+            if [[ -n "$MAJOR_MINOR" ]]; then TAGS+=("${REPO}:${MAJOR_MINOR}"); fi
+            TAGS+=("${REPO}:sha-${SHA}")
+          else
+            TAGS+=("${REPO}:${VARIANT}")
+            TAGS+=("${REPO}:${VARIANT}-latest")
+            TAGS+=("${REPO}:${VARIANT}-${VERSION}")
+          fi
+          for TAG in "${TAGS[@]}"; do
+            echo "Pushing manifest: $TAG"
+            docker buildx imagetools create -t "$TAG" "$SRC_AMD64" "$SRC_ARM64"
+          done
