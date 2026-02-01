@@ -278,7 +278,6 @@ func (t *Task) streamDownload(ctx context.Context, file *File) error {
 	if err != nil {
 		return unrecoverable(err)
 	}
-	applyCustomHeaders(req, file.Headers)
 	req.Header.Set("Accept-Encoding", "identity")
 
 	resp, err := t.client.Do(req)
@@ -329,7 +328,6 @@ func (t *Task) probeFile(ctx context.Context, file *File) error {
 		if err != nil {
 			return unrecoverable(err)
 		}
-		applyCustomHeaders(req, file.Headers)
 		req.Header.Set("Accept-Encoding", "identity")
 
 		resp, err := t.client.Do(req)
@@ -361,8 +359,6 @@ func (t *Task) probeFileRange(ctx context.Context, file *File) error {
 	if err != nil {
 		return unrecoverable(err)
 	}
-
-	applyCustomHeaders(req, file.Headers)
 	// Request only the first byte
 	req.Header.Set("Range", "bytes=0-0")
 	req.Header.Set("Accept-Encoding", "identity")

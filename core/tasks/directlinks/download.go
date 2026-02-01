@@ -124,13 +124,6 @@ func (t *Task) downloadToTemp(ctx context.Context, file *File) (*fsutil.File, er
 		return nil, fmt.Errorf("failed to create temp artifact: %w", err)
 	}
 
-	if file.Size > 0 {
-		if err := preallocateFile(cacheFile, file.Size); err != nil {
-			_ = cacheFile.CloseAndRemove()
-			return nil, fmt.Errorf("disk allocation failed for %s (%d bytes): %w", file.URL, file.Size, err)
-		}
-	}
-
 	var downloadErr error
 	strategy := "Sequential"
 
@@ -252,7 +245,6 @@ func (t *Task) downloadRangeSegment(
 			return unrecoverable(fmt.Errorf("bad request: %w", err))
 		}
 
-		applyCustomHeaders(req, file.Headers)
 		req.Header.Set("Accept-Encoding", "identity")
 		req.Header.Set("Range", fmt.Sprintf("bytes=%d-%d", segmentStart, segmentEnd))
 
@@ -304,7 +296,6 @@ func (t *Task) downloadSequential(ctx context.Context, file *File, cacheFile *fs
 	if err != nil {
 		return err
 	}
-	applyCustomHeaders(req, file.Headers)
 	req.Header.Set("Accept-Encoding", "identity")
 
 	resp, err := t.client.Do(req)
@@ -374,7 +365,6 @@ func (t *Task) downloadSequentialWithResume(ctx context.Context, file *File, cac
 				return err
 			}
 
-			applyCustomHeaders(req, file.Headers)
 			req.Header.Set("Accept-Encoding", "identity")
 			req.Header.Set("Range", fmt.Sprintf("bytes=%d-", offset))
 			if file.ETag != "" {

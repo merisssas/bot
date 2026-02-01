@@ -24,7 +24,6 @@ type File struct {
 	URL  string
 	Size int64
 
-	Headers         http.Header
 	SupportsRange   bool
 	DisableParallel bool
 	ContentMD5      string
@@ -138,14 +137,20 @@ func NewTask(
 	files := make([]*File, 0, len(links))
 	rawLinks := make([]string, 0, len(links))
 	for _, link := range links {
-		parsedURL, headers, err := parseDirectLinkInput(link)
-		if err != nil {
-			log.FromContext(ctx).Warnf("Skipping invalid link %q: %v", link, err)
+		parsedURL := strings.TrimSpace(link)
+		if parsedURL == "" {
+			log.FromContext(ctx).Warnf("Skipping invalid link %q: empty link", link)
+			continue
+		}
+		if parts := strings.SplitN(parsedURL, "|", 2); len(parts) > 0 {
+			parsedURL = strings.TrimSpace(parts[0])
+		}
+		if parsedURL == "" {
+			log.FromContext(ctx).Warnf("Skipping invalid link %q: missing url", link)
 			continue
 		}
 		files = append(files, &File{
-			URL:     parsedURL,
-			Headers: headers,
+			URL: parsedURL,
 		})
 		rawLinks = append(rawLinks, strings.TrimSpace(link))
 	}
