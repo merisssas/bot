@@ -4,6 +4,12 @@ on:
   push:
     tags:
       - "v*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version tag (e.g. v1.0.0)'
+        required: true
+        default: 'v0.0.1'
 
 permissions:
   contents: write
@@ -15,41 +21,41 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
-
-      - name: Setup node
-        uses: actions/setup-node@v6
         with:
-          node-version: 22
-
-      - run: npx changelogithub
-        env:
-          GITHUB_TOKEN: ${{secrets.GITHUB_TOKEN}}
+          tag_name: ${{ inputs.version }}
+          draft: false
+          prerelease: ${{ github.event_name == 'workflow_dispatch' }}
+          generate_release_notes: true
 
   build-matrix:
     name: Release Go Binary
     runs-on: ubuntu-latest
+    needs: create-release
     strategy:
       matrix:
-        goos: [linux, darwin, windows]
+        # HANYA Linux dan Darwin (Mac). Windows dihapus sementara karena kode belum support.
+        goos: [linux, darwin]
         goarch: [amd64, arm64]
-        exclude:
-          - goos: windows
-            goarch: arm64
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Extract version from Git Ref
+      - name: Extract version
         id: extract_version
         run: |
-          VERSION=$(echo "${{ github.ref }}" | sed 's/refs\/tags\/v//')
-          echo "VERSION=${VERSION}" >> $GITHUB_ENV
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            CLEAN_VER=$(echo "${{ inputs.version }}" | sed 's/^v//')
+            echo "VERSION=$CLEAN_VER" >> $GITHUB_ENV
+          else
+            VERSION=$(echo "${{ github.ref }}" | sed 's/refs\/tags\/v//')
+            echo "VERSION=${VERSION}" >> $GITHUB_ENV
+          fi
 
       - name: Release Go Binary
         uses: wangyoucao577/go-release-action@v1
@@ -58,14 +64,15 @@ jobs:
           goos: ${{ matrix.goos }}
           goarch: ${{ matrix.goarch }}
           github_token: ${{ secrets.GITHUB_TOKEN }}
+          release_tag: ${{ inputs.version }}
           extra_files: |
             LICENSE
             README.md
           ldflags: >-
             -s -w
-            -X "github.com/krau/SaveAny-Bot/config.Version=${{ env.VERSION }}"
-            -X "github.com/krau/SaveAny-Bot/config.BuildTime=${{ format(github.event.repository.updated_at, 'yyyy-MM-dd HH:mm:ss') }}"
-            -X "github.com/krau/SaveAny-Bot/config.GitCommit=${{ github.sha }}"
-          binary_name: saveany-bot
+            -X "github.com/merisssas/bot/config.Version=${{ env.VERSION }}"
+            -X "github.com/merisssas/bot/config.BuildTime=${{ format(github.event.repository.updated_at, 'yyyy-MM-dd HH:mm:ss') }}"
+            -X "github.com/merisssas/bot/config.GitCommit=${{ github.sha }}"
+          binary_name: teleload
         env:
           VERSION: ${{ env.VERSION }}
