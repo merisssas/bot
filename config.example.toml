@@ -1,0 +1,124 @@
+# 创建文件时，若需要保留中文注释，请务必确保本文件编码为 UTF-8 ，否则会无法读取。
+# 更详细的配置请在 https://sabot.unv.app/deployment/configuration 查看
+workers = 4    # 同时下载文件数
+retry = 3      # 下载失败重试次数
+threads = 4    # 单个任务下载使用的最大线程数
+stream = false # 使用流式传输模式, 建议仅在硬盘空间十分有限时使用.
+allow_self_update = false # 是否允许从 GitHub Release 自更新
+insecure_skip_verify = false # 是否跳过 HTTPS 证书校验（仅在不安全环境中启用）
+
+[ytdlp]
+# yt-dlp 最大并发下载数
+max_concurrent_downloads = 3
+
+[ytdlp.proxy]
+# 是否为 YouTube 启用 GitHub 代理池
+enable = false
+# 代理列表来源（需为 GitHub/raw.githubusercontent.com）
+sources = [
+  "https://raw.githubusercontent.com/TheSpeedX/PROXY-List/master/http.txt",
+  "https://raw.githubusercontent.com/TheSpeedX/PROXY-List/master/socks5.txt",
+]
+# 代理列表刷新间隔（分钟）
+refresh_minutes = 30
+
+[user_sync]
+# 是否删除数据库中不存在于配置文件里的用户
+delete_missing = false
+
+[parser]
+# 是否启用 JS 插件解析器
+plugin_enable = false
+# JS 插件目录
+plugin_dirs = ["plugins"]
+# JS 插件执行超时时间（秒）
+plugin_timeout_seconds = 15
+
+[telegram]
+# Bot Token
+# 更换 Bot Token 后请删除会话数据库文件 (默认路径为 data/session.db )
+token = ""
+# Telegram API 配置, 若不配置也可运行, 将使用默认的 API ID 和 API HASH
+# 推荐使用自己的 API ID 和 API HASH (https://my.telegram.org)
+# app_id = 1025907
+# app_hash = "452b0359b988148995f22ff0f4229750"
+[telegram.proxy]
+# 启用代理连接 telegram
+enable = false
+url = "socks5://127.0.0.1:7890"
+
+# Aria2 配置
+[aria2]
+# 启用 Aria2 下载支持
+enable = false
+# Aria2 RPC URL
+url = "http://localhost:6800/jsonrpc"
+# Aria2 RPC Secret (如果配置了 rpc-secret)
+secret = ""
+# 转存完成后删除 Aria2 下载的本地文件
+remove_after_transfer = true
+# 单个服务器最大连接数（对只允许单连接的站点建议设置为 1）
+max_connection_per_server = 1
+# 单个下载任务的分段数（对只允许单连接的站点建议设置为 1）
+split = 1
+# 分段最小大小（split=1 时可忽略）
+min_split_size = "1M"
+# 允许断点续传
+continue = true
+# 失败重试次数（0 表示使用全局 retry）
+max_tries = 0
+# 重试等待时间（秒）
+retry_wait_seconds = 5
+# 轮询任务状态间隔（秒）
+poll_interval_seconds = 2
+# 下载无进展时自动中止的超时（分钟，0 表示禁用）
+idle_timeout_minutes = 30
+# 预留磁盘空间（MB），用于避免磁盘被写满
+min_free_space_mb = 0
+# 进度消息更新间隔（秒）
+progress_update_interval_seconds = 3
+# 启动时清理 Aria2 残留文件（仅 .aria2/.part）
+startup_cleanup = false
+# Aria2 下载目录（为空时尝试从 Aria2 获取）
+cleanup_dir = ""
+
+# 存储列表
+[[storages]]
+# 标识名, 需要唯一
+name = "本机1"
+# 存储类型, 目前可用: local, alist, webdav, s3, telegram
+type = "local"
+# 启用存储
+enable = true
+# 文件保存根路径
+base_path = "./downloads"
+
+[[storages]]
+name = "MyWebdav"
+type = "webdav"
+enable = false
+base_path = '/path/telegram'
+url = 'https://example.com/dav'
+username = 'username'
+password = 'password'
+
+# 用户列表
+[[users]]
+# telegram user id
+id = 114514
+# 存储过滤列表, 元素为存储标识名.
+# 将该列表留空并开启黑名单过滤模式以允许使用所有存储，此处示例为黑名单模式，用户 114514 可使用所有存储
+storages = []
+# 使用列表过滤黑名单模式，反之则为白名单，白名单请在列表中指定可用的存储.
+blacklist = true
+# 启用 SponsorBlock 自动移除片头/广告
+ytdlp_sponsorblock = false
+# 是否为 Telegram Premium 账号 (4GB 上限)
+telegram_premium = false
+
+[[users]]
+id = 123456
+storages = ["本机1"]
+blacklist = false  # 使用白名单模式，此时，用户 123456 仅可使用标识名为 '本地1' 的存储
+ytdlp_sponsorblock = false
+telegram_premium = false
