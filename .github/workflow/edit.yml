@@ -1,0 +1,78 @@
+name: Remove files containing "test" in filename
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_branch:
+        description: "Branch target untuk di-commit"
+        required: false
+        default: "main"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: remove-filenames-containing-test-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  remove_test_named_files:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.target_branch || github.ref_name }}
+          fetch-depth: 0
+
+      - name: Remove files whose filename contains 'test' (case-insensitive)
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "Searching for files with 'test' in the filename (case-insensitive)..."
+
+          # Cari file (bukan folder) dengan basename mengandung 'test' (case-insensitive)
+          # -print0 agar aman untuk spasi/newline pada nama file
+          mapfile -d '' files < <(
+            find . -type f -printf '%p\0' \
+            | awk -v RS='\0' '
+                {
+                  path=$0
+                  n=split(path, parts, "/")
+                  base=parts[n]
+                  low=tolower(base)
+                  if (index(low, "test") > 0) {
+                    printf "%s%c", path, 0
+                  }
+                }'
+          )
+
+          if [ "${#files[@]}" -eq 0 ]; then
+            echo "No matching files found. Nothing to do."
+            exit 0
+          fi
+
+          printf "Found %d files to delete:\n" "${#files[@]}"
+          printf '%s\n' "${files[@]}"
+
+          rm -f -- "${files[@]}"
+
+      - name: Commit changes (if any)
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git status --porcelain | grep -q .; then
+            git add -A
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git commit -m "chore: remove files with 'test' in filename"
+          else
+            echo "No changes to commit."
+          fi
+
+      - name: Push
+        shell: bash
+        run: |
+          set -euo pipefail
+          branch="${{ inputs.target_branch || github.ref_name }}"
+          git push origin "HEAD:${branch}"
