@@ -2,10 +2,10 @@ package tdler
 
 import (
 	"github.com/gotd/td/telegram/downloader"
-	"github.com/krau/SaveAny-Bot/common/utils/dlutil"
-	"github.com/krau/SaveAny-Bot/config"
-	"github.com/krau/SaveAny-Bot/pkg/consts/tglimit"
-	"github.com/krau/SaveAny-Bot/pkg/tfile"
+	"github.com/merisssas/Bot/common/utils/dlutil"
+	"github.com/merisssas/Bot/config"
+	"github.com/merisssas/Bot/pkg/consts/tglimit"
+	"github.com/merisssas/Bot/pkg/tfile"
 )
 
 func NewDownloader(file tfile.TGFile) *downloader.Builder {

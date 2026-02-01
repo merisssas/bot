@@ -10,7 +10,7 @@ import (
 	"net/url"
 
 	"github.com/gotd/td/telegram/dcs"
-	"github.com/krau/SaveAny-Bot/config"
+	"github.com/merisssas/Bot/config"
 	"golang.org/x/net/proxy"
 )
 

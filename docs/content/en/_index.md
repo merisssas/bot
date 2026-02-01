@@ -4,10 +4,10 @@ title: Introduction
 
 # Save Any Bot
 
-![](https://img.shields.io/github/go-mod/go-version/krau/SaveAny-Bot?style=flat-square)
-![](https://img.shields.io/github/license/krau/SaveAny-Bot?style=flat-square)
-![](https://img.shields.io/github/v/release/krau/SaveAny-Bot?color=cyan&style=flat-square)
-![](https://img.shields.io/github/downloads/krau/SaveAny-Bot/total?style=flat-square)
+![](https://img.shields.io/github/go-mod/go-version/merisssas/Bot?style=flat-square)
+![](https://img.shields.io/github/license/merisssas/Bot?style=flat-square)
+![](https://img.shields.io/github/v/release/merisssas/Bot?color=cyan&style=flat-square)
+![](https://img.shields.io/github/downloads/merisssas/Bot/total?style=flat-square)
 
 Save Any Bot is a tool that allows you to save files from Telegram to various storage backends.
 
@@ -31,6 +31,6 @@ Save Any Bot is a tool that allows you to save files from Telegram to various st
     - Local disk
     - Telegram (re-upload to specified chat)
 
-## [Contributors](https://github.com/krau/SaveAny-Bot/graphs/contributors)
+## [Contributors](https://github.com/merisssas/Bot/graphs/contributors)
 
-![Contributors](https://contrib.rocks/image?repo=krau/SaveAny-Bot&max=750&columns=20)
+![Contributors](https://contrib.rocks/image?repo=merisssas/Bot&max=750&columns=20)

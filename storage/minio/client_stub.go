@@ -9,8 +9,8 @@ import (
 	"path"
 	"strings"
 
-	config "github.com/krau/SaveAny-Bot/config/storage"
-	storenum "github.com/krau/SaveAny-Bot/pkg/enums/storage"
+	config "github.com/merisssas/Bot/config/storage"
+	storenum "github.com/merisssas/Bot/pkg/enums/storage"
 )
 
 type Minio struct {

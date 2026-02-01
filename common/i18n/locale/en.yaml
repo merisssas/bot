@@ -132,7 +132,7 @@ bot:
       error_build_dir_select_keyboard_failed: "Failed to build directory selection keyboard: {{.Error}}"
       error_no_permission: |
         You are not in the whitelist and cannot use this bot.
-        You can deploy your own instance: https://github.com/krau/SaveAny-Bot
+        You can deploy your own instance: https://github.com/merisssas/Bot
     save:
       error_invalid_id_or_username: "Invalid ID or username: {{.Error}}"
     watch:

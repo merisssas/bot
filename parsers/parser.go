@@ -4,11 +4,11 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/krau/SaveAny-Bot/parsers/js"
-	"github.com/krau/SaveAny-Bot/parsers/native/kemono"
-	"github.com/krau/SaveAny-Bot/parsers/native/twitter"
-	"github.com/krau/SaveAny-Bot/parsers/parsers"
-	"github.com/krau/SaveAny-Bot/pkg/parser"
+	"github.com/merisssas/Bot/parsers/js"
+	"github.com/merisssas/Bot/parsers/native/kemono"
+	"github.com/merisssas/Bot/parsers/native/twitter"
+	"github.com/merisssas/Bot/parsers/parsers"
+	"github.com/merisssas/Bot/pkg/parser"
 )
 
 func init() {

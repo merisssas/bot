@@ -1,4 +1,4 @@
-module github.com/krau/SaveAny-Bot/docs
+module github.com/merisssas/Bot/docs
 
 go 1.24.4
 

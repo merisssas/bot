@@ -1,10 +1,10 @@
 package tcbdata
 
 import (
-	"github.com/krau/SaveAny-Bot/pkg/enums/tasktype"
-	"github.com/krau/SaveAny-Bot/pkg/parser"
-	"github.com/krau/SaveAny-Bot/pkg/telegraph"
-	"github.com/krau/SaveAny-Bot/pkg/tfile"
+	"github.com/merisssas/Bot/pkg/enums/tasktype"
+	"github.com/merisssas/Bot/pkg/parser"
+	"github.com/merisssas/Bot/pkg/telegraph"
+	"github.com/merisssas/Bot/pkg/tfile"
 )
 
 const (

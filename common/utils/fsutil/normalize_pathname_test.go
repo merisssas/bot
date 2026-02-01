@@ -3,7 +3,7 @@ package fsutil_test
 import (
 	"testing"
 
-	"github.com/krau/SaveAny-Bot/common/utils/fsutil"
+	"github.com/merisssas/Bot/common/utils/fsutil"
 )
 
 func TestNormalizePathname(t *testing.T) {

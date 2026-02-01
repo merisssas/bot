@@ -9,11 +9,11 @@ import (
 
 	"github.com/charmbracelet/log"
 	"github.com/gotd/td/tg"
-	"github.com/krau/SaveAny-Bot/common/utils/strutil"
-	"github.com/krau/SaveAny-Bot/common/utils/tgutil"
-	"github.com/krau/SaveAny-Bot/database"
-	"github.com/krau/SaveAny-Bot/pkg/enums/fnamest"
-	"github.com/krau/SaveAny-Bot/pkg/tfile"
+	"github.com/merisssas/Bot/common/utils/strutil"
+	"github.com/merisssas/Bot/common/utils/tgutil"
+	"github.com/merisssas/Bot/database"
+	"github.com/merisssas/Bot/pkg/enums/fnamest"
+	"github.com/merisssas/Bot/pkg/tfile"
 )
 
 func IsSupported(media tg.MessageMediaClass) bool {

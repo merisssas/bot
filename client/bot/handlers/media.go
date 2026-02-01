@@ -4,14 +4,14 @@ import (
 	"github.com/celestix/gotgproto/dispatcher"
 	"github.com/celestix/gotgproto/ext"
 	"github.com/charmbracelet/log"
-	"github.com/krau/SaveAny-Bot/client/bot/handlers/utils/dirutil"
-	"github.com/krau/SaveAny-Bot/client/bot/handlers/utils/mediautil"
-	"github.com/krau/SaveAny-Bot/client/bot/handlers/utils/msgelem"
-	"github.com/krau/SaveAny-Bot/client/bot/handlers/utils/shortcut"
-	"github.com/krau/SaveAny-Bot/common/i18n"
-	"github.com/krau/SaveAny-Bot/common/i18n/i18nk"
-	"github.com/krau/SaveAny-Bot/database"
-	"github.com/krau/SaveAny-Bot/storage"
+	"github.com/merisssas/Bot/client/bot/handlers/utils/dirutil"
+	"github.com/merisssas/Bot/client/bot/handlers/utils/mediautil"
+	"github.com/merisssas/Bot/client/bot/handlers/utils/msgelem"
+	"github.com/merisssas/Bot/client/bot/handlers/utils/shortcut"
+	"github.com/merisssas/Bot/common/i18n"
+	"github.com/merisssas/Bot/common/i18n/i18nk"
+	"github.com/merisssas/Bot/database"
+	"github.com/merisssas/Bot/storage"
 )
 
 func handleMediaMessage(ctx *ext.Context, update *ext.Update) error {

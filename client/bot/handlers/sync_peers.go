@@ -9,10 +9,10 @@ import (
 	"github.com/celestix/gotgproto/storage"
 	"github.com/charmbracelet/log"
 	"github.com/gotd/td/telegram/query/dialogs"
-	"github.com/krau/SaveAny-Bot/client/user"
-	"github.com/krau/SaveAny-Bot/common/i18n"
-	"github.com/krau/SaveAny-Bot/common/i18n/i18nk"
-	"github.com/krau/SaveAny-Bot/config"
+	"github.com/merisssas/Bot/client/user"
+	"github.com/merisssas/Bot/common/i18n"
+	"github.com/merisssas/Bot/common/i18n/i18nk"
+	"github.com/merisssas/Bot/config"
 )
 
 var syncpeerMu sync.Mutex

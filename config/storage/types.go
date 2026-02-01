@@ -1,7 +1,7 @@
 package storage
 
 import (
-	storenum "github.com/krau/SaveAny-Bot/pkg/enums/storage"
+	storenum "github.com/merisssas/Bot/pkg/enums/storage"
 )
 
 type StorageConfig interface {

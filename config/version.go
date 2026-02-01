@@ -1,7 +1,7 @@
 package config
 
 // inject version by '-X' flag
-// go build -ldflags "-X github.com/krau/SaveAny-Bot/config.Version=${{ env.VERSION }}"
+// go build -ldflags "-X github.com/merisssas/Bot/config.Version=${{ env.VERSION }}"
 var (
 	Version   string = "dev"
 	BuildTime string = "unknown"
@@ -10,5 +10,5 @@ var (
 )
 
 const (
-	GitRepo = "krau/SaveAny-Bot"
+	GitRepo = "merisssas/Bot"
 )

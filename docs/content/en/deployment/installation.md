@@ -6,7 +6,7 @@ title: "Installation and Updates"
 
 ## Deploy from Pre-compiled Binary (Recommended)
 
-Download the binary file for your platform from the [Release](https://github.com/krau/SaveAny-Bot/releases) page.
+Download the binary file for your platform from the [Release](https://github.com/merisssas/Bot/releases) page.
 
 Create a `config.toml` file in the extracted directory, refer to the [Configuration Guide](../configuration) to edit the configuration file.
 
@@ -51,7 +51,7 @@ systemctl enable --now saveany-bot
 
 <h4>Add Boot Autostart Service</h4>
 
-Create a file <code>/etc/init.d/saveanybot</code>, refer to <a href="https://github.com/krau/SaveAny-Bot/blob/main/docs/confs/wrt_init" target="_blank">wrt_init</a> and modify as needed:
+Create a file <code>/etc/init.d/saveanybot</code>, refer to <a href="https://github.com/merisssas/Bot/blob/main/docs/confs/wrt_init" target="_blank">wrt_init</a> and modify as needed:
 
 {{< codeblock >}}
 #!/bin/sh /etc/rc.common
@@ -94,7 +94,7 @@ chmod +x /etc/rc.d/S99saveanybot
 
 <h4>Add Shortcut Commands</h4>
 
-Create a file <code>/usr/bin/sabot</code>, refer to <a href="https://github.com/krau/SaveAny-Bot/blob/main/docs/confs/wrt_bin" target="_blank">wrt_bin</a> and modify as needed. Note that the file encoding here only supports ANSI 936.
+Create a file <code>/usr/bin/sabot</code>, refer to <a href="https://github.com/merisssas/Bot/blob/main/docs/confs/wrt_bin" target="_blank">wrt_bin</a> and modify as needed. Note that the file encoding here only supports ANSI 936.
 
 Then set permissions:
 
@@ -112,7 +112,7 @@ Usage: <code>sudo sabot start|stop|restart|status|enable|disable</code>
 
 ### Docker Compose
 
-Download the [docker-compose.yml](https://github.com/krau/SaveAny-Bot/blob/main/docker-compose.yml) file, create a new `config.toml` file in the same directory, refer to [config.example.toml](https://github.com/krau/SaveAny-Bot/blob/main/config.example.toml) to edit the configuration file.
+Download the [docker-compose.yml](https://github.com/merisssas/Bot/blob/main/docker-compose.yml) file, create a new `config.toml` file in the same directory, refer to [config.example.toml](https://github.com/merisssas/Bot/blob/main/config.example.toml) to edit the configuration file.
 
 Start:
 

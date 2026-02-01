@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"reflect"
 
-	storenum "github.com/krau/SaveAny-Bot/pkg/enums/storage"
+	storenum "github.com/merisssas/Bot/pkg/enums/storage"
 	"github.com/mitchellh/mapstructure"
 	"github.com/spf13/viper"
 )

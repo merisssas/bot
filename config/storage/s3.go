@@ -3,7 +3,7 @@ package storage
 import (
 	"fmt"
 
-	storenum "github.com/krau/SaveAny-Bot/pkg/enums/storage"
+	storenum "github.com/merisssas/Bot/pkg/enums/storage"
 )
 
 type S3StorageConfig struct {

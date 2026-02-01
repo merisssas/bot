@@ -5,11 +5,11 @@ import (
 	"fmt"
 	"path/filepath"
 
-	"github.com/krau/SaveAny-Bot/config"
-	"github.com/krau/SaveAny-Bot/core"
-	"github.com/krau/SaveAny-Bot/pkg/enums/tasktype"
-	"github.com/krau/SaveAny-Bot/pkg/tfile"
-	"github.com/krau/SaveAny-Bot/storage"
+	"github.com/merisssas/Bot/config"
+	"github.com/merisssas/Bot/core"
+	"github.com/merisssas/Bot/pkg/enums/tasktype"
+	"github.com/merisssas/Bot/pkg/tfile"
+	"github.com/merisssas/Bot/storage"
 )
 
 var _ core.Executable = (*Task)(nil)

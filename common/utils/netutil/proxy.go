@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/charmbracelet/log"
-	"github.com/krau/SaveAny-Bot/config"
+	"github.com/merisssas/Bot/config"
 	"golang.org/x/net/proxy"
 )
 

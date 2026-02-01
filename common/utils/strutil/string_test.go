@@ -4,7 +4,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/krau/SaveAny-Bot/common/utils/strutil"
+	"github.com/merisssas/Bot/common/utils/strutil"
 )
 
 func TestExtractTagsFromText(t *testing.T) {

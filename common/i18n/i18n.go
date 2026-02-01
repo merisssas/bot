@@ -8,7 +8,7 @@ import (
 	"maps"
 
 	"github.com/goccy/go-yaml"
-	"github.com/krau/SaveAny-Bot/common/i18n/i18nk"
+	"github.com/merisssas/Bot/common/i18n/i18nk"
 	"github.com/nicksnyder/go-i18n/v2/i18n"
 	"golang.org/x/text/language"
 )

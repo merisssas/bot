@@ -8,10 +8,10 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/log"
-	storconfig "github.com/krau/SaveAny-Bot/config/storage"
-	"github.com/krau/SaveAny-Bot/pkg/enums/ctxkey"
-	storenum "github.com/krau/SaveAny-Bot/pkg/enums/storage"
-	"github.com/krau/SaveAny-Bot/pkg/s3"
+	storconfig "github.com/merisssas/Bot/config/storage"
+	"github.com/merisssas/Bot/pkg/enums/ctxkey"
+	storenum "github.com/merisssas/Bot/pkg/enums/storage"
+	"github.com/merisssas/Bot/pkg/s3"
 	"github.com/rs/xid"
 )
 

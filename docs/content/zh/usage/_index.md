@@ -5,7 +5,7 @@ weight: 10
 
 # 使用帮助
 
-这里介绍 Save Any Bot 的一些功能和使用方法, 如果你没有在这里找到你需要的内容, 另请参阅 [配置说明](../deployment/configuration) 或前往 Github [Discussions](https://github.com/krau/SaveAny-Bot/discussions) 提问.
+这里介绍 Save Any Bot 的一些功能和使用方法, 如果你没有在这里找到你需要的内容, 另请参阅 [配置说明](../deployment/configuration) 或前往 Github [Discussions](https://github.com/merisssas/Bot/discussions) 提问.
 
 ## 转存文件
 
@@ -29,7 +29,7 @@ weight: 10
 
 允许你为 Bot 在上传文件到存储时设置一些重定向规则, 用于自动整理所保存的文件.
 
-见: <a href="https://github.com/krau/SaveAny-Bot/issues/28" target="_blank">#28</a>
+见: <a href="https://github.com/merisssas/Bot/issues/28" target="_blank">#28</a>
 
 目前支持的规则类型:
 
@@ -69,7 +69,7 @@ FILENAME-REGEX (?i)\.(mp4|mkv|ts|avi|flv)$ MyAlist /视频
 
 匹配相册消息 (media group), 规则内容只能为 `true` 或 `false`.
 
-规则中的路径若使用 "NEW-FOR-ALBUM" , 则表示为该组消息新建一个文件夹来存储它们. 见: https://github.com/krau/SaveAny-Bot/issues/87
+规则中的路径若使用 "NEW-FOR-ALBUM" , 则表示为该组消息新建一个文件夹来存储它们. 见: https://github.com/merisssas/Bot/issues/87
 
 例如:
 

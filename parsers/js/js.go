@@ -12,8 +12,8 @@ import (
 
 	"github.com/charmbracelet/log"
 	"github.com/dop251/goja"
-	"github.com/krau/SaveAny-Bot/config"
-	"github.com/krau/SaveAny-Bot/pkg/parser"
+	"github.com/merisssas/Bot/config"
+	"github.com/merisssas/Bot/pkg/parser"
 )
 
 type jsParser struct {

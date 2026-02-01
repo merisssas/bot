@@ -6,10 +6,10 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/krau/SaveAny-Bot/core"
-	"github.com/krau/SaveAny-Bot/pkg/enums/tasktype"
-	"github.com/krau/SaveAny-Bot/pkg/storagetypes"
-	"github.com/krau/SaveAny-Bot/storage"
+	"github.com/merisssas/Bot/core"
+	"github.com/merisssas/Bot/pkg/enums/tasktype"
+	"github.com/merisssas/Bot/pkg/storagetypes"
+	"github.com/merisssas/Bot/storage"
 	"github.com/rs/xid"
 )
 

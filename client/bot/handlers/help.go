@@ -5,9 +5,9 @@ import (
 
 	"github.com/celestix/gotgproto/dispatcher"
 	"github.com/celestix/gotgproto/ext"
-	"github.com/krau/SaveAny-Bot/common/i18n"
-	"github.com/krau/SaveAny-Bot/common/i18n/i18nk"
-	"github.com/krau/SaveAny-Bot/config"
+	"github.com/merisssas/Bot/common/i18n"
+	"github.com/merisssas/Bot/common/i18n/i18nk"
+	"github.com/merisssas/Bot/config"
 )
 
 func handleHelpCmd(ctx *ext.Context, update *ext.Update) error {

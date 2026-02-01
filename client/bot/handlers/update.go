@@ -10,9 +10,9 @@ import (
 	"github.com/celestix/gotgproto/ext"
 	"github.com/gotd/td/telegram/message/html"
 	"github.com/gotd/td/tg"
-	"github.com/krau/SaveAny-Bot/common/i18n"
-	"github.com/krau/SaveAny-Bot/common/i18n/i18nk"
-	"github.com/krau/SaveAny-Bot/config"
+	"github.com/merisssas/Bot/common/i18n"
+	"github.com/merisssas/Bot/common/i18n/i18nk"
+	"github.com/merisssas/Bot/config"
 	"github.com/unvgo/ghselfupdate"
 )
 
