@@ -210,8 +210,8 @@ func (t *Task) downloadSingle(ctx context.Context, logger *log.Logger, tempDir, 
 		RestrictFilenames().
 		EmbedMetadata().
 		EmbedThumbnail().
-		ResizeBuffer(true).
-		HlsUseMpegts(true).
+		ResizeBuffer().
+		HLSUseMPEGTS().
 		FormatSort("res:1080,vcodec:h264,acodec:aac").
 		RecodeVideo("mp4").
 		MergeOutputFormat("mp4")
