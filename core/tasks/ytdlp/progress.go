@@ -250,24 +250,4 @@ func hasTransferred(status string) bool {
 	return strings.Contains(lowerStatus, "transferred:") || strings.Contains(lowerStatus, "uploaded")
 }
 
-// Generate visual progress bar [▓▓▓░░]
-// Note: This needs percentage input. Since current interface passes string,
-// we rely on string parsing or general status.
-// If you update execute.go to pass int percentage, use this:
-func makeProgressBar(percent float64) string {
-	if percent < 0 {
-		percent = 0
-	}
-	if percent > 100 {
-		percent = 100
-	}
-
-	fillCount := int((percent / 100) * float64(progressBarWidth))
-	emptyCount := progressBarWidth - fillCount
-
-	return fmt.Sprintf("[%s%s]",
-		strings.Repeat(charFilled, fillCount),
-		strings.Repeat(charEmpty, emptyCount))
-}
-
 var _ ProgressTracker = (*Progress)(nil)
