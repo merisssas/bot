@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/celestix/gotgproto/ext"
@@ -15,6 +16,7 @@ import (
 	"github.com/gotd/td/telegram/message/styling"
 	"github.com/gotd/td/telegram/uploader"
 	"github.com/gotd/td/tg"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/merisssas/bot/common/utils/dlutil"
 	"github.com/merisssas/bot/common/utils/tgutil"
@@ -39,12 +41,16 @@ func (t *Task) uploadFilesToChat(ctx context.Context, filePaths []string, tempDi
 		return fmt.Errorf("failed to get input peer for chat ID %d", t.ChatID)
 	}
 
+	eg, egCtx := errgroup.WithContext(ctx)
+	eg.SetLimit(2)
+
 	for _, filePath := range filePaths {
-		if err := t.uploadFileToChat(ctx, tctx, peer, filePath, tempDir); err != nil {
-			return err
-		}
+		filePath := filePath
+		eg.Go(func() error {
+			return t.uploadFileToChat(egCtx, tctx, peer, filePath, tempDir)
+		})
 	}
-	return nil
+	return eg.Wait()
 }
 
 func (t *Task) uploadFileToChat(ctx context.Context, tctx *ext.Context, peer tg.InputPeerClass, filePath, tempDir string) error {
@@ -128,6 +134,52 @@ func findThumbnailPath(tempDir, mediaPath string) string {
 	for _, candidate := range candidates {
 		if _, err := os.Stat(candidate); err == nil {
 			return candidate
+		}
+	}
+	if token := extractMediaIDToken(baseName); token != "" {
+		if match := findThumbnailByToken(tempDir, token); match != "" {
+			return match
+		}
+	}
+	return ""
+}
+
+func extractMediaIDToken(baseName string) string {
+	start := strings.LastIndex(baseName, "[")
+	if start == -1 {
+		return ""
+	}
+	end := strings.Index(baseName[start:], "]")
+	if end == -1 {
+		return ""
+	}
+	end = start + end
+	if end <= start+1 {
+		return ""
+	}
+	return baseName[start : end+1]
+}
+
+func findThumbnailByToken(tempDir, token string) string {
+	entries, err := os.ReadDir(tempDir)
+	if err != nil {
+		return ""
+	}
+	sort.Slice(entries, func(i, j int) bool {
+		return entries[i].Name() < entries[j].Name()
+	})
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+		name := entry.Name()
+		if !strings.Contains(name, token) {
+			continue
+		}
+		ext := strings.ToLower(filepath.Ext(name))
+		switch ext {
+		case ".jpg", ".jpeg", ".png", ".webp":
+			return filepath.Join(tempDir, name)
 		}
 	}
 	return ""

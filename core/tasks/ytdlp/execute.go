@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strings"
 	"sync"
 	"syscall"
@@ -167,6 +168,9 @@ func classifyFailure(res *ytdlp.Result, err error) (failureClass, string) {
 	case strings.Contains(msg, "sign in to confirm your age") ||
 		(strings.Contains(msg, "cookies") && strings.Contains(msg, "required")):
 		return failAuthRequired, "Blocked: authentication/cookies required. Provide cookies file."
+	case strings.Contains(msg, "http error 403") ||
+		strings.Contains(msg, "403 forbidden"):
+		return failAuthRequired, "HTTP 403 Forbidden. Check cookies/auth or refresh yt-dlp."
 	case strings.Contains(msg, "http error 429") ||
 		strings.Contains(msg, "too many requests"):
 		return failRateLimited, "Rate-limited (HTTP 429). Switching to conservative sleep + lower concurrency."
@@ -334,6 +338,8 @@ func (t *Task) buildDownloadPlan(logger *log.Logger, tempDir string) (*downloadP
 		"--extractor-retries", "10",
 		"--retry-sleep", "exp=1:30:2",
 		"--concurrent-fragments", "4",
+		"--windows-filenames",
+		"--trim-filenames", "200",
 		"--add-metadata",
 		"--embed-chapters",
 		"--embed-subs",
@@ -413,6 +419,9 @@ func (t *Task) scanDownloadedFiles(dir string, logger *log.Logger) ([]string, er
 	if err != nil {
 		return nil, err
 	}
+
+	sort.Strings(files)
+	sort.Strings(metadataFiles)
 
 	if len(metadataFiles) > 0 {
 		if tracked := filesFromMetadata(metadataFiles, logger); len(tracked) > 0 {
@@ -499,6 +508,7 @@ func sanitizeFlags(flags []string) ([]string, error) {
 		"--batch-file": true, "--load-info": true, "--plugin-dirs": true,
 		"--external-downloader": true, "--external-downloader-args": true,
 		"--ffmpeg-location": true,
+		"--cache-dir":       true,
 	}
 
 	safe := make([]string, 0, len(flags))
@@ -509,6 +519,9 @@ func sanitizeFlags(flags []string) ([]string, error) {
 		}
 
 		clean = normalizeFlagToken(clean)
+		if prefix := forbiddenFlagPrefix(clean); prefix != "" {
+			return nil, fmt.Errorf("security violation: flag prefix %q is strictly prohibited", prefix)
+		}
 		flagName := clean
 		if strings.Contains(clean, "=") {
 			parts := strings.SplitN(clean, "=", 2)
@@ -545,6 +558,25 @@ func stripMatchingQuotes(value string) string {
 		return value[1 : len(value)-1]
 	}
 	return value
+}
+
+func forbiddenFlagPrefix(flag string) string {
+	prefixes := []string{
+		"-o",
+		"-P",
+		"--paths",
+		"--cache-dir",
+		"--output",
+	}
+	for _, prefix := range prefixes {
+		if flag == prefix {
+			continue
+		}
+		if strings.HasPrefix(flag, prefix) {
+			return prefix
+		}
+	}
+	return ""
 }
 
 func calculateBackoff(attempt int) time.Duration {
@@ -770,6 +802,7 @@ func filesFromMetadata(metadataFiles []string, logger *log.Logger) []string {
 	for path := range tracked {
 		files = append(files, path)
 	}
+	sort.Strings(files)
 	return files
 }
 
