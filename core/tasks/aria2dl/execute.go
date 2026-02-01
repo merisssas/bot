@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"math/rand"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -25,6 +26,11 @@ const (
 	maxRetriesDefault      = 5
 )
 
+var (
+	jitterMu   sync.Mutex
+	jitterRand = rand.New(rand.NewSource(time.Now().UnixNano()))
+)
+
 // Execute implements core.Executable.
 func (t *Task) Execute(ctx context.Context) error {
 	logger := log.FromContext(ctx)
@@ -32,6 +38,14 @@ func (t *Task) Execute(ctx context.Context) error {
 
 	if t.Progress != nil {
 		t.Progress.OnStart(ctx, t)
+	}
+
+	if t.Config.DryRun {
+		return t.executeDryRun(ctx)
+	}
+
+	if err := t.applyBurstLimit(ctx); err != nil {
+		logger.Warnf("Failed to apply burst rate: %v", err)
 	}
 
 	// Wait for aria2 download to complete
@@ -237,7 +251,7 @@ func (t *Task) transferFileWithRetry(ctx context.Context, srcPath, destRelPath s
 			t.SetError(err)
 			return fmt.Errorf("max retries reached for %s: %w", destRelPath, err)
 		} else {
-			backoff := time.Duration(math.Pow(2, float64(attempt))) * time.Second
+			backoff := t.computeBackoff(attempt)
 			retryCount := t.IncrementRetry()
 			t.SetError(err)
 			logger.Warnf("Transfer failed for %s (attempt %d/%d, retry=%d), retrying in %v: %v", destRelPath, attempt+1, maxRetries, retryCount, backoff, err)
@@ -271,7 +285,7 @@ func (t *Task) transferSingleFile(ctx context.Context, srcPath, destRelPath stri
 	ctx = context.WithValue(ctx, ctxkey.ContentLength, fileInfo.Size())
 
 	destPath := filepath.Join(t.StorPath, destRelPath)
-	logger.Infof("Transferring file %s to %s:%s (%s)", filepath.Base(srcPath), t.Storage.Name(), destPath, formatBytes(fileInfo.Size()))
+	logger.Infof("Transferring file %s to %s:%s (%s)", filepath.Base(srcPath), t.Storage.Name(), destPath, FormatBytes(fileInfo.Size()))
 
 	if err := t.Storage.Save(ctx, reader, destPath); err != nil {
 		return err
@@ -281,9 +295,67 @@ func (t *Task) transferSingleFile(ctx context.Context, srcPath, destRelPath stri
 	return nil
 }
 
+func (t *Task) executeDryRun(ctx context.Context) error {
+	logger := log.FromContext(ctx)
+	result, err := DryRun(ctx, t.Config, t.URIs)
+	if err != nil {
+		t.SetError(err)
+		if t.Progress != nil {
+			t.Progress.OnDone(ctx, t, err)
+		}
+		return err
+	}
+
+	for _, file := range result.Files {
+		logger.Infof("Dry-run file: %s (%s, %d bytes, status=%d)", file.FileName, file.ContentType, file.Length, file.StatusCode)
+	}
+	for _, skipped := range result.Skipped {
+		logger.Warnf("Dry-run skipped URI: %s", skipped)
+	}
+
+	if t.Progress != nil {
+		t.Progress.OnDone(ctx, t, nil)
+	}
+	return nil
+}
+
+func (t *Task) applyBurstLimit(ctx context.Context) error {
+	if t.Config.BurstRate == "" || t.Config.LimitRate == "" {
+		return nil
+	}
+
+	_, err := t.Aria2Client.ChangeOption(ctx, t.GID(), aria2.Options{
+		"max-download-limit": t.Config.BurstRate,
+	})
+	if err != nil {
+		return err
+	}
+
+	go func() {
+		timer := time.NewTimer(t.Config.BurstDuration)
+		defer timer.Stop()
+		select {
+		case <-ctx.Done():
+			return
+		case <-timer.C:
+		}
+
+		changeCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		_, changeErr := t.Aria2Client.ChangeOption(changeCtx, t.GID(), aria2.Options{
+			"max-download-limit": t.Config.LimitRate,
+		})
+		if changeErr != nil {
+			log.FromContext(ctx).Warnf("Failed to apply steady-state limit: %v", changeErr)
+		}
+	}()
+
+	return nil
+}
+
 // removeFileIfNeeded removes a file if RemoveAfterTransfer is enabled
 func (t *Task) removeFileIfNeeded(ctx context.Context, filePath string) {
-	if config.C().Aria2.KeepFile {
+	if !config.C().Aria2.RemoveAfterTransferEnabled() {
 		return
 	}
 
@@ -322,18 +394,6 @@ func (t *Task) cancelAria2Download() {
 	}
 }
 
-func formatBytes(size int64) string {
-	if size == 0 {
-		return "0 B"
-	}
-
-	sizes := []string{"B", "KB", "MB", "GB", "TB"}
-	index := int(math.Floor(math.Log(float64(size)) / math.Log(1024)))
-	value := float64(size) / math.Pow(1024, float64(index))
-
-	return fmt.Sprintf("%.2f %s", value, sizes[index])
-}
-
 func statusToInt64(value string) int64 {
 	parsed, err := strconv.ParseInt(value, 10, 64)
 	if err != nil {
@@ -348,4 +408,21 @@ func statusToInt(value string) int {
 		return 0
 	}
 	return parsed
+}
+
+func (t *Task) computeBackoff(attempt int) time.Duration {
+	base := t.Config.RetryBaseDelay
+	if base <= 0 {
+		base = time.Second
+	}
+
+	backoff := base * time.Duration(math.Pow(2, float64(attempt)))
+	if t.Config.RetryMaxDelay > 0 && backoff > t.Config.RetryMaxDelay {
+		backoff = t.Config.RetryMaxDelay
+	}
+
+	jitterMu.Lock()
+	jitter := jitterRand.Float64()*0.3 + 0.85
+	jitterMu.Unlock()
+	return time.Duration(float64(backoff) * jitter)
 }

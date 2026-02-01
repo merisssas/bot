@@ -29,6 +29,35 @@ url = "http://localhost:6800/jsonrpc"
 secret = ""
 # Remove local files downloaded by Aria2 after transfer.
 remove_after_transfer = true
+# Max retry attempts per download.
+max_retries = 5
+# Retry backoff policy.
+retry_base_delay = "500ms"
+retry_max_delay = "10s"
+# Resume partial downloads when possible.
+enable_resume = true
+# Multi-connection/segmented settings.
+split = 8
+max_conn_per_server = 4
+min_split_size = "1MB"
+# Bandwidth control (per task).
+limit_rate = ""
+burst_rate = "2MB"
+burst_duration = "10s"
+# overwrite | rename | skip
+overwrite_policy = "rename"
+# Dry-run mode to validate metadata without downloading files.
+dry_run = false
+# Checksum verification (optional).
+checksum_algorithm = ""
+expected_checksum = ""
+# Downloader identity and network options.
+user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) UltimateDownloader/2.0"
+proxy = ""
+# Optional custom headers.
+headers = {}
+# Queue priority (higher runs first when multiple links are queued).
+default_priority = 0
 
 # yt-dlp configuration
 [ytdlp]

@@ -38,10 +38,39 @@ type Config struct {
 }
 
 type aria2Config struct {
-	Enable   bool   `toml:"enable" mapstructure:"enable" json:"enable"`
-	Url      string `toml:"url" mapstructure:"url" json:"url"`
-	Secret   string `toml:"secret" mapstructure:"secret" json:"secret"`
-	KeepFile bool   `toml:"keep_file" mapstructure:"keep_file" json:"keep_file"`
+	Enable              bool              `toml:"enable" mapstructure:"enable" json:"enable"`
+	Url                 string            `toml:"url" mapstructure:"url" json:"url"`
+	Secret              string            `toml:"secret" mapstructure:"secret" json:"secret"`
+	KeepFile            bool              `toml:"keep_file" mapstructure:"keep_file" json:"keep_file"`
+	RemoveAfterTransfer *bool             `toml:"remove_after_transfer" mapstructure:"remove_after_transfer" json:"remove_after_transfer"`
+	MaxRetries          int               `toml:"max_retries" mapstructure:"max_retries" json:"max_retries"`
+	RetryBaseDelay      time.Duration     `toml:"retry_base_delay" mapstructure:"retry_base_delay" json:"retry_base_delay"`
+	RetryMaxDelay       time.Duration     `toml:"retry_max_delay" mapstructure:"retry_max_delay" json:"retry_max_delay"`
+	EnableResume        *bool             `toml:"enable_resume" mapstructure:"enable_resume" json:"enable_resume"`
+	Split               int               `toml:"split" mapstructure:"split" json:"split"`
+	MaxConnPerServer    int               `toml:"max_conn_per_server" mapstructure:"max_conn_per_server" json:"max_conn_per_server"`
+	MinSplitSize        string            `toml:"min_split_size" mapstructure:"min_split_size" json:"min_split_size"`
+	LimitRate           string            `toml:"limit_rate" mapstructure:"limit_rate" json:"limit_rate"`
+	BurstRate           string            `toml:"burst_rate" mapstructure:"burst_rate" json:"burst_rate"`
+	BurstDuration       time.Duration     `toml:"burst_duration" mapstructure:"burst_duration" json:"burst_duration"`
+	OverwritePolicy     string            `toml:"overwrite_policy" mapstructure:"overwrite_policy" json:"overwrite_policy"`
+	DryRun              bool              `toml:"dry_run" mapstructure:"dry_run" json:"dry_run"`
+	ChecksumAlgorithm   string            `toml:"checksum_algorithm" mapstructure:"checksum_algorithm" json:"checksum_algorithm"`
+	ExpectedChecksum    string            `toml:"expected_checksum" mapstructure:"expected_checksum" json:"expected_checksum"`
+	UserAgent           string            `toml:"user_agent" mapstructure:"user_agent" json:"user_agent"`
+	Proxy               string            `toml:"proxy" mapstructure:"proxy" json:"proxy"`
+	Headers             map[string]string `toml:"headers" mapstructure:"headers" json:"headers"`
+	DefaultPriority     int               `toml:"default_priority" mapstructure:"default_priority" json:"default_priority"`
+}
+
+func (c aria2Config) RemoveAfterTransferEnabled() bool {
+	if c.KeepFile {
+		return false
+	}
+	if c.RemoveAfterTransfer == nil {
+		return true
+	}
+	return *c.RemoveAfterTransfer
 }
 
 type ytdlpConfig struct {

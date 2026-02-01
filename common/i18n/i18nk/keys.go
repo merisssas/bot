@@ -4,6 +4,11 @@ package i18nk
 type Key string
 
 const (
+	BotMsgAria2DryRunEmpty                                Key = "bot.msg.aria2.dry_run_empty"
+	BotMsgAria2DryRunHeader                               Key = "bot.msg.aria2.dry_run_header"
+	BotMsgAria2DryRunSkipped                              Key = "bot.msg.aria2.dry_run_skipped"
+	BotMsgAria2DryRunUnknownSize                          Key = "bot.msg.aria2.dry_run_unknown_size"
+	BotMsgAria2DryRunUnknownType                          Key = "bot.msg.aria2.dry_run_unknown_type"
 	BotMsgAria2ErrorAddingAria2Download                   Key = "bot.msg.aria2.error_adding_aria2_download"
 	BotMsgAria2ErrorAria2ClientInitFailed                 Key = "bot.msg.aria2.error_aria2_client_init_failed"
 	BotMsgAria2ErrorAria2NotEnabled                       Key = "bot.msg.aria2.error_aria2_not_enabled"

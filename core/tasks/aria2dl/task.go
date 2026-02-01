@@ -15,15 +15,29 @@ import (
 var _ core.Executable = (*Task)(nil)
 
 type TaskConfig struct {
-	MaxRetries     int               `json:"max_retries"`
-	Priority       int               `json:"priority"`
-	VerifyHash     bool              `json:"verify_hash"`
-	HashType       string            `json:"hash_type,omitempty"`
-	ExpectedHash   string            `json:"expected_hash,omitempty"`
-	CustomHeaders  map[string]string `json:"custom_headers,omitempty"`
-	ProxyURL       string            `json:"proxy_url,omitempty"`
-	BandwidthLimit int64             `json:"bandwidth_limit,omitempty"`
-	UserAgent      string            `json:"user_agent,omitempty"`
+	MaxRetries          int               `json:"max_retries"`
+	RetryBaseDelay      time.Duration     `json:"retry_base_delay"`
+	RetryMaxDelay       time.Duration     `json:"retry_max_delay"`
+	Priority            int               `json:"priority"`
+	VerifyHash          bool              `json:"verify_hash"`
+	HashType            string            `json:"hash_type,omitempty"`
+	ExpectedHash        string            `json:"expected_hash,omitempty"`
+	CustomHeaders       map[string]string `json:"custom_headers,omitempty"`
+	ProxyURL            string            `json:"proxy_url,omitempty"`
+	LimitRate           string            `json:"limit_rate,omitempty"`
+	BurstRate           string            `json:"burst_rate,omitempty"`
+	BurstDuration       time.Duration     `json:"burst_duration,omitempty"`
+	UserAgent           string            `json:"user_agent,omitempty"`
+	EnableResume        bool              `json:"enable_resume"`
+	Split               int               `json:"split"`
+	MaxConnPerServer    int               `json:"max_conn_per_server"`
+	MinSplitSize        string            `json:"min_split_size,omitempty"`
+	OverwritePolicy     string            `json:"overwrite_policy,omitempty"`
+	DryRun              bool              `json:"dry_run"`
+	ChecksumAlgorithm   string            `json:"checksum_algorithm,omitempty"`
+	ExpectedChecksum    string            `json:"expected_checksum,omitempty"`
+	RequireChecksum     bool              `json:"require_checksum,omitempty"`
+	EnableIntegrityScan bool              `json:"enable_integrity_scan,omitempty"`
 }
 
 type TaskStats struct {
@@ -95,7 +109,13 @@ func WithProxy(proxyURL string) Option {
 
 func WithLimit(bytesPerSec int64) Option {
 	return func(t *Task) {
-		t.Config.BandwidthLimit = bytesPerSec
+		t.Config.LimitRate = fmt.Sprintf("%d", bytesPerSec)
+	}
+}
+
+func WithTaskConfig(config TaskConfig) Option {
+	return func(t *Task) {
+		t.Config = config
 	}
 }
 
@@ -141,12 +161,6 @@ func NewTask(
 ) *Task {
 	ctx, cancel := context.WithCancel(ctx)
 
-	defaultConfig := TaskConfig{
-		MaxRetries: 5,
-		Priority:   1,
-		UserAgent:  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) UltimateDownloader/2.0",
-	}
-
 	task := &Task{
 		ID:          id,
 		ctx:         ctx,
@@ -157,7 +171,7 @@ func NewTask(
 		Storage:     stor,
 		StorPath:    storPath,
 		Progress:    progressTracker,
-		Config:      defaultConfig,
+		Config:      DefaultTaskConfig(),
 		Stats: TaskStats{
 			StartTime: time.Now(),
 		},

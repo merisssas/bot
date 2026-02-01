@@ -85,3 +85,29 @@ Full repo scan performed via `rg --files` to enumerate every tracked file and id
 ### Unused function/module decisions
 - All directlinks helpers are actively used or part of the new “Ultimate Downloader” feature set.
 - **Decision**: KEEP all functions; no DEPRECATE/REMOVE actions required in this pass.
+
+## 8) Aria2DL Audit Update (2026-02-03)
+
+### Folder scan (aria2dl scope)
+- `core/tasks/aria2dl/task.go`
+- `core/tasks/aria2dl/execute.go`
+- `core/tasks/aria2dl/progress.go`
+- `core/tasks/aria2dl/options.go`
+- `core/tasks/aria2dl/dryrun.go`
+- `core/tasks/aria2dl/format.go`
+- `core/tasks/aria2dl/validate.go`
+- `core/tasks/aria2dl/README.md`
+
+### Duplicate/conflict checks
+- Consolidated duplicate byte-formatting logic into `FormatBytes` for shared reuse.
+- No conflicting function names across downloader tasks after validation helpers were added.
+
+### Core vs helper vs legacy (aria2dl scope)
+- **Core**: `execute.go`, `task.go`
+- **Helper**: `options.go`, `dryrun.go`, `format.go`, `validate.go`
+- **Docs**: `README.md`
+- **Legacy**: none identified
+
+### Unused function/module decisions
+- **KEEP**: validation + dry-run helpers (directly used by aria2 download entrypoint).
+- **KEEP**: priority helper (`ApplyQueuePriority`) for queue ordering.
