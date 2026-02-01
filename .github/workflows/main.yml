@@ -1,0 +1,55 @@
+name: Replace krau/SaveAny-Bot -> merisssas/Bot
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  replace:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Replace occurrences (text files only)
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          FROM='krau/SaveAny-Bot'
+          TO='merisssas/Bot'
+
+          echo "Scanning for: $FROM"
+          # Ambil hanya file TEKS yang mengandung string, versi aman (skip biner)
+          mapfile -t files < <(git grep -l -- "$FROM" || true)
+
+          if [ "${#files[@]}" -eq 0 ]; then
+            echo "No matches found. Nothing to change."
+            exit 0
+          fi
+
+          echo "Found ${#files[@]} file(s). Replacing..."
+          for f in "${files[@]}"; do
+            # perl inplace replace, stabil lintas platform
+            perl -pi -e "s/\Q$FROM\E/$TO/g" "$f"
+          done
+
+          echo "Replacement done. Showing diff:"
+          git diff --stat
+
+      - name: Create Pull Request
+        uses: peter-evans/create-pull-request@v6
+        with:
+          branch: chore/replace-krau-saveany-bot
+          delete-branch: true
+          commit-message: "chore: replace krau/SaveAny-Bot with merisssas/Bot"
+          title: "chore: replace krau/SaveAny-Bot -> merisssas/Bot"
+          body: |
+            This PR replaces all occurrences of `krau/SaveAny-Bot` with `merisssas/Bot` across the repository.
+            - Automated via GitHub Actions (workflow_dispatch)
+            - Only files matched by `git grep` were edited
