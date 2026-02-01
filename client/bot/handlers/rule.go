@@ -9,12 +9,12 @@ import (
 	"github.com/celestix/gotgproto/ext"
 	"github.com/charmbracelet/log"
 	"github.com/duke-git/lancet/v2/slice"
-	"github.com/krau/SaveAny-Bot/client/bot/handlers/utils/msgelem"
-	"github.com/krau/SaveAny-Bot/common/i18n"
-	"github.com/krau/SaveAny-Bot/common/i18n/i18nk"
-	"github.com/krau/SaveAny-Bot/common/utils/strutil"
-	"github.com/krau/SaveAny-Bot/database"
-	"github.com/krau/SaveAny-Bot/pkg/rule"
+	"github.com/merisssas/Bot/client/bot/handlers/utils/msgelem"
+	"github.com/merisssas/Bot/common/i18n"
+	"github.com/merisssas/Bot/common/i18n/i18nk"
+	"github.com/merisssas/Bot/common/utils/strutil"
+	"github.com/merisssas/Bot/database"
+	"github.com/merisssas/Bot/pkg/rule"
 )
 
 func handleRuleCmd(ctx *ext.Context, update *ext.Update) error {

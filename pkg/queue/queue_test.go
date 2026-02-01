@@ -6,7 +6,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/krau/SaveAny-Bot/pkg/queue"
+	"github.com/merisssas/Bot/pkg/queue"
 )
 
 // helper to create a simple Task with integer payload

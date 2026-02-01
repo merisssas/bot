@@ -5,12 +5,12 @@ import (
 	"github.com/celestix/gotgproto/ext"
 	"github.com/charmbracelet/log"
 	"github.com/gotd/td/tg"
-	"github.com/krau/SaveAny-Bot/common/i18n"
-	"github.com/krau/SaveAny-Bot/common/i18n/i18nk"
-	"github.com/krau/SaveAny-Bot/common/utils/tgutil"
-	"github.com/krau/SaveAny-Bot/core"
-	"github.com/krau/SaveAny-Bot/core/tasks/directlinks"
-	"github.com/krau/SaveAny-Bot/storage"
+	"github.com/merisssas/Bot/common/i18n"
+	"github.com/merisssas/Bot/common/i18n/i18nk"
+	"github.com/merisssas/Bot/common/utils/tgutil"
+	"github.com/merisssas/Bot/core"
+	"github.com/merisssas/Bot/core/tasks/directlinks"
+	"github.com/merisssas/Bot/storage"
 	"github.com/rs/xid"
 )
 

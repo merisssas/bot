@@ -6,7 +6,7 @@ title: "安装与更新"
 
 ## 从预编译文件部署(推荐)
 
-在 [Release](https://github.com/krau/SaveAny-Bot/releases) 页面下载对应平台的二进制文件.
+在 [Release](https://github.com/merisssas/Bot/releases) 页面下载对应平台的二进制文件.
 
 在解压后目录新建 `config.toml` 文件, 参考 [配置说明](../configuration) 编辑配置文件
 
@@ -51,7 +51,7 @@ systemctl enable --now saveany-bot
 
 <h4>添加开机自启动服务</h4>
 
-创建文件 <code>/etc/init.d/saveanybot</code> ，参考 <a href="https://github.com/krau/SaveAny-Bot/blob/main/docs/confs/wrt_init" target="_blank">wrt_init</a> 并自行修改:
+创建文件 <code>/etc/init.d/saveanybot</code> ，参考 <a href="https://github.com/merisssas/Bot/blob/main/docs/confs/wrt_init" target="_blank">wrt_init</a> 并自行修改:
 
 {{< codeblock >}}
 #!/bin/sh /etc/rc.common
@@ -94,7 +94,7 @@ chmod +x /etc/rc.d/S99saveanybot
 
 <h4>添加快捷指令</h4>
 
-创建文件 <code>/usr/bin/sabot</code> ，参考 <a href="https://github.com/krau/SaveAny-Bot/blob/main/docs/confs/wrt_bin" target="_blank">wrt_bin</a>  并自行修改，注意此处文件编码仅支持 ANSI 936 .
+创建文件 <code>/usr/bin/sabot</code> ，参考 <a href="https://github.com/merisssas/Bot/blob/main/docs/confs/wrt_bin" target="_blank">wrt_bin</a>  并自行修改，注意此处文件编码仅支持 ANSI 936 .
 
 随后赋予权限:
 
@@ -112,7 +112,7 @@ chmod +x /usr/bin/sabot
 
 ### Docker Compose
 
-下载 [docker-compose.yml](https://github.com/krau/SaveAny-Bot/blob/main/docker-compose.yml) 文件, 在同目录下新建 `config.toml` 文件, 参考 [config.example.toml](https://github.com/krau/SaveAny-Bot/blob/main/config.example.toml) 编辑配置文件.
+下载 [docker-compose.yml](https://github.com/merisssas/Bot/blob/main/docker-compose.yml) 文件, 在同目录下新建 `config.toml` 文件, 参考 [config.example.toml](https://github.com/merisssas/Bot/blob/main/config.example.toml) 编辑配置文件.
 
 启动:
 

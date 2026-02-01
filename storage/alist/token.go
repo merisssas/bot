@@ -9,7 +9,7 @@ import (
 	"net/http"
 	"time"
 
-	config "github.com/krau/SaveAny-Bot/config/storage"
+	config "github.com/merisssas/Bot/config/storage"
 )
 
 func (a *Alist) getToken(ctx context.Context) error {

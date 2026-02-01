@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"sync/atomic"
 
-	"github.com/krau/SaveAny-Bot/core"
-	"github.com/krau/SaveAny-Bot/pkg/enums/tasktype"
-	"github.com/krau/SaveAny-Bot/pkg/telegraph"
-	"github.com/krau/SaveAny-Bot/storage"
+	"github.com/merisssas/Bot/core"
+	"github.com/merisssas/Bot/pkg/enums/tasktype"
+	"github.com/merisssas/Bot/pkg/telegraph"
+	"github.com/merisssas/Bot/storage"
 )
 
 var _ core.Executable = (*Task)(nil)

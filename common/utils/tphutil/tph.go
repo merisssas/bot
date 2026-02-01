@@ -5,8 +5,8 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/krau/SaveAny-Bot/config"
-	"github.com/krau/SaveAny-Bot/pkg/telegraph"
+	"github.com/merisssas/Bot/config"
+	"github.com/merisssas/Bot/pkg/telegraph"
 )
 
 var (

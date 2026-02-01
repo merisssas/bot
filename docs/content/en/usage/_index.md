@@ -5,7 +5,7 @@ weight: 10
 
 # Usage
 
-This page introduces some of Save Any Bot's features and basic usage. If you can't find what you need here, please also see the [Configuration Guide](../deployment/configuration) or ask in GitHub [Discussions](https://github.com/krau/SaveAny-Bot/discussions).
+This page introduces some of Save Any Bot's features and basic usage. If you can't find what you need here, please also see the [Configuration Guide](../deployment/configuration) or ask in GitHub [Discussions](https://github.com/merisssas/Bot/discussions).
 
 ## File Transfer
 
@@ -30,7 +30,7 @@ Before enabling silent mode, you need to set the default save location using the
 
 Storage rules allow you to define redirection rules when the bot uploads files to storage, so that saved files are automatically organized.
 
-See: <a href="https://github.com/krau/SaveAny-Bot/issues/28" target="_blank">#28</a>
+See: <a href="https://github.com/merisssas/Bot/issues/28" target="_blank">#28</a>
 
 Currently supported rule types:
 
@@ -70,7 +70,7 @@ Similar to the above, but matches based on the text content of the message itsel
 
 Matches album messages (media groups). Rule content can only be `true` or `false`.
 
-If the path in the rule uses `NEW-FOR-ALBUM`, the bot will create a new folder for each media group and store all files of that group there. See: https://github.com/krau/SaveAny-Bot/issues/87
+If the path in the rule uses `NEW-FOR-ALBUM`, the bot will create a new folder for each media group and store all files of that group there. See: https://github.com/merisssas/Bot/issues/87
 
 For example:
 

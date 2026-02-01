@@ -7,9 +7,9 @@ import (
 	"github.com/cenkalti/backoff/v4"
 	"github.com/gotd/contrib/middleware/floodwait"
 	"github.com/gotd/td/telegram"
-	"github.com/krau/SaveAny-Bot/client/middleware/recovery"
-	"github.com/krau/SaveAny-Bot/client/middleware/retry"
-	"github.com/krau/SaveAny-Bot/config"
+	"github.com/merisssas/Bot/client/middleware/recovery"
+	"github.com/merisssas/Bot/client/middleware/retry"
+	"github.com/merisssas/Bot/config"
 )
 
 // https://github.com/iyear/tdl/blob/master/core/tclient/tclient.go

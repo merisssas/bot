@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/krau/SaveAny-Bot/cmd/upload"
-	"github.com/krau/SaveAny-Bot/config"
+	"github.com/merisssas/Bot/cmd/upload"
+	"github.com/merisssas/Bot/config"
 	"github.com/spf13/cobra"
 )
 

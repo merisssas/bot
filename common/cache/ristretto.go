@@ -6,7 +6,7 @@ import (
 
 	"github.com/charmbracelet/log"
 	"github.com/dgraph-io/ristretto/v2"
-	"github.com/krau/SaveAny-Bot/config"
+	"github.com/merisssas/Bot/config"
 )
 
 var cache *ristretto.Cache[string, any]

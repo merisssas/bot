@@ -7,12 +7,12 @@ import (
 	"github.com/celestix/gotgproto/dispatcher/handlers"
 	"github.com/celestix/gotgproto/dispatcher/handlers/filters"
 	"github.com/celestix/gotgproto/ext"
-	sabotfilters "github.com/krau/SaveAny-Bot/client/bot/handlers/utils/filters"
-	"github.com/krau/SaveAny-Bot/client/bot/handlers/utils/re"
-	userclient "github.com/krau/SaveAny-Bot/client/user"
-	"github.com/krau/SaveAny-Bot/common/i18n/i18nk"
-	"github.com/krau/SaveAny-Bot/config"
-	"github.com/krau/SaveAny-Bot/pkg/tcbdata"
+	sabotfilters "github.com/merisssas/Bot/client/bot/handlers/utils/filters"
+	"github.com/merisssas/Bot/client/bot/handlers/utils/re"
+	userclient "github.com/merisssas/Bot/client/user"
+	"github.com/merisssas/Bot/common/i18n/i18nk"
+	"github.com/merisssas/Bot/config"
+	"github.com/merisssas/Bot/pkg/tcbdata"
 )
 
 type DescCommandHandler struct {

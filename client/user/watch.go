@@ -7,8 +7,8 @@ import (
 	"github.com/celestix/gotgproto/dispatcher"
 	"github.com/celestix/gotgproto/ext"
 	"github.com/gotd/td/tg"
-	"github.com/krau/SaveAny-Bot/common/utils/tgutil"
-	"github.com/krau/SaveAny-Bot/pkg/tfile"
+	"github.com/merisssas/Bot/common/utils/tgutil"
+	"github.com/merisssas/Bot/pkg/tfile"
 )
 
 type MediaMessageEvent struct {

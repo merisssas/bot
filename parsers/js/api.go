@@ -12,8 +12,8 @@ import (
 	"github.com/blang/semver"
 	"github.com/charmbracelet/log"
 	"github.com/dop251/goja"
-	"github.com/krau/SaveAny-Bot/common/utils/netutil"
-	"github.com/krau/SaveAny-Bot/parsers/parsers"
+	"github.com/merisssas/Bot/common/utils/netutil"
+	"github.com/merisssas/Bot/parsers/parsers"
 )
 
 func jsRegisterParser(vm *goja.Runtime) func(call goja.FunctionCall) goja.Value {

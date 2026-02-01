@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/krau/SaveAny-Bot/config"
-	"github.com/krau/SaveAny-Bot/pkg/parser"
+	"github.com/merisssas/Bot/config"
+	"github.com/merisssas/Bot/pkg/parser"
 )
 
 var (

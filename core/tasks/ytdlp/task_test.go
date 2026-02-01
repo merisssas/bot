@@ -5,8 +5,8 @@ import (
 	"io"
 	"testing"
 
-	storcfg "github.com/krau/SaveAny-Bot/config/storage"
-	storenum "github.com/krau/SaveAny-Bot/pkg/enums/storage"
+	storcfg "github.com/merisssas/Bot/config/storage"
+	storenum "github.com/merisssas/Bot/pkg/enums/storage"
 )
 
 // MockStorage is a simple mock for testing

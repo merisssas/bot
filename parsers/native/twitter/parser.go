@@ -10,8 +10,8 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/krau/SaveAny-Bot/common/utils/netutil"
-	"github.com/krau/SaveAny-Bot/pkg/parser"
+	"github.com/merisssas/Bot/common/utils/netutil"
+	"github.com/merisssas/Bot/pkg/parser"
 )
 
 type TwitterParser struct {

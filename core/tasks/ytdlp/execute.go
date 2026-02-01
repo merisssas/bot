@@ -11,8 +11,8 @@ import (
 	"github.com/charmbracelet/log"
 	ytdlp "github.com/lrstanley/go-ytdlp"
 
-	"github.com/krau/SaveAny-Bot/config"
-	"github.com/krau/SaveAny-Bot/pkg/enums/ctxkey"
+	"github.com/merisssas/Bot/config"
+	"github.com/merisssas/Bot/pkg/enums/ctxkey"
 )
 
 // Execute implements core.Executable.

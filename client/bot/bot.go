@@ -10,12 +10,12 @@ import (
 	"github.com/celestix/gotgproto/sessionMaker"
 	"github.com/charmbracelet/log"
 	"github.com/gotd/td/tg"
-	"github.com/krau/SaveAny-Bot/client/bot/handlers"
-	"github.com/krau/SaveAny-Bot/client/middleware"
-	"github.com/krau/SaveAny-Bot/common/i18n"
-	"github.com/krau/SaveAny-Bot/common/utils/tgutil"
-	"github.com/krau/SaveAny-Bot/config"
-	"github.com/krau/SaveAny-Bot/database"
+	"github.com/merisssas/Bot/client/bot/handlers"
+	"github.com/merisssas/Bot/client/middleware"
+	"github.com/merisssas/Bot/common/i18n"
+	"github.com/merisssas/Bot/common/utils/tgutil"
+	"github.com/merisssas/Bot/config"
+	"github.com/merisssas/Bot/database"
 )
 
 var ectx *ext.Context

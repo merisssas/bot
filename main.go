@@ -5,7 +5,7 @@ import (
 	"os"
 	"os/signal"
 
-	"github.com/krau/SaveAny-Bot/cmd"
+	"github.com/merisssas/Bot/cmd"
 )
 
 //go:generate go run cmd/geni18n/main.go -dir ./common/i18n/locale -out common/i18n/i18nk/keys.go -pkg i18nk

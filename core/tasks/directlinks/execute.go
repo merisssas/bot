@@ -11,10 +11,10 @@ import (
 
 	"github.com/charmbracelet/log"
 	"github.com/duke-git/lancet/v2/retry"
-	"github.com/krau/SaveAny-Bot/common/utils/fsutil"
-	"github.com/krau/SaveAny-Bot/common/utils/ioutil"
-	"github.com/krau/SaveAny-Bot/config"
-	"github.com/krau/SaveAny-Bot/pkg/enums/ctxkey"
+	"github.com/merisssas/Bot/common/utils/fsutil"
+	"github.com/merisssas/Bot/common/utils/ioutil"
+	"github.com/merisssas/Bot/config"
+	"github.com/merisssas/Bot/pkg/enums/ctxkey"
 	"golang.org/x/sync/errgroup"
 )
 

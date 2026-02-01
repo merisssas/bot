@@ -5,9 +5,9 @@ import (
 	"strings"
 
 	"github.com/gotd/td/telegram/message/styling"
-	"github.com/krau/SaveAny-Bot/common/i18n"
-	"github.com/krau/SaveAny-Bot/common/i18n/i18nk"
-	"github.com/krau/SaveAny-Bot/database"
+	"github.com/merisssas/Bot/common/i18n"
+	"github.com/merisssas/Bot/common/i18n/i18nk"
+	"github.com/merisssas/Bot/database"
 )
 
 func BuildRuleHelpStyling(enabled bool, rules []database.Rule) []styling.StyledTextOption {

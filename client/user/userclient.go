@@ -13,10 +13,10 @@ import (
 
 	"github.com/charmbracelet/log"
 	"github.com/gotd/td/tg"
-	"github.com/krau/SaveAny-Bot/client/middleware"
-	"github.com/krau/SaveAny-Bot/common/utils/tgutil"
-	"github.com/krau/SaveAny-Bot/config"
-	"github.com/krau/SaveAny-Bot/database"
+	"github.com/merisssas/Bot/client/middleware"
+	"github.com/merisssas/Bot/common/utils/tgutil"
+	"github.com/merisssas/Bot/config"
+	"github.com/merisssas/Bot/database"
 )
 
 var uc *gotgproto.Client

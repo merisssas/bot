@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/duke-git/lancet/v2/slice"
-	"github.com/krau/SaveAny-Bot/config/storage"
+	"github.com/merisssas/Bot/config/storage"
 	"github.com/spf13/viper"
 	"golang.org/x/net/proxy"
 )

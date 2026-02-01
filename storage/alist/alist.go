@@ -13,10 +13,10 @@ import (
 	"time"
 
 	"github.com/charmbracelet/log"
-	config "github.com/krau/SaveAny-Bot/config/storage"
-	"github.com/krau/SaveAny-Bot/pkg/enums/ctxkey"
-	storenum "github.com/krau/SaveAny-Bot/pkg/enums/storage"
-	"github.com/krau/SaveAny-Bot/pkg/storagetypes"
+	config "github.com/merisssas/Bot/config/storage"
+	"github.com/merisssas/Bot/pkg/enums/ctxkey"
+	storenum "github.com/merisssas/Bot/pkg/enums/storage"
+	"github.com/merisssas/Bot/pkg/storagetypes"
 )
 
 type Alist struct {

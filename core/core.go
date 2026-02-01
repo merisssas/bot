@@ -5,9 +5,9 @@ import (
 	"errors"
 
 	"github.com/charmbracelet/log"
-	"github.com/krau/SaveAny-Bot/config"
-	"github.com/krau/SaveAny-Bot/pkg/enums/tasktype"
-	"github.com/krau/SaveAny-Bot/pkg/queue"
+	"github.com/merisssas/Bot/config"
+	"github.com/merisssas/Bot/pkg/enums/tasktype"
+	"github.com/merisssas/Bot/pkg/queue"
 )
 
 var queueInstance *queue.TaskQueue[Executable]
