@@ -9,7 +9,9 @@ permissions:
 
 jobs:
   replace:
+    name: replace
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -25,7 +27,8 @@ jobs:
           TO='merisssas/Bot'
 
           echo "Scanning for: $FROM"
-          # Ambil hanya file TEKS yang mengandung string, versi aman (skip biner)
+
+          # Only files that actually contain the string (git grep skips most binaries safely)
           mapfile -t files < <(git grep -l -- "$FROM" || true)
 
           if [ "${#files[@]}" -eq 0 ]; then
@@ -34,9 +37,10 @@ jobs:
           fi
 
           echo "Found ${#files[@]} file(s). Replacing..."
+
           for f in "${files[@]}"; do
-            # perl inplace replace, stabil lintas platform
-            perl -pi -e "s/\Q$FROM\E/$TO/g" "$f"
+            # Use ENV vars so replacement can safely contain slashes (/), ampersands (&), etc.
+            FROM="$FROM" TO="$TO" perl -pi -e 's/\Q$ENV{FROM}\E/$ENV{TO}/g' "$f"
           done
 
           echo "Replacement done. Showing diff:"
@@ -51,5 +55,5 @@ jobs:
           title: "chore: replace krau/SaveAny-Bot -> merisssas/Bot"
           body: |
             This PR replaces all occurrences of `krau/SaveAny-Bot` with `merisssas/Bot` across the repository.
-            - Automated via GitHub Actions (workflow_dispatch)
-            - Only files matched by `git grep` were edited
+            - Automated via workflow_dispatch
+            - Files were selected via `git grep -l`
