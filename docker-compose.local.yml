@@ -1,7 +1,7 @@
 services:
   saveany-bot:
     build: .
-    container_name: saveany-bot
+    container_name: teleload
     restart: unless-stopped
     volumes:
       - ./data:/app/data
