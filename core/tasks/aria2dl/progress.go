@@ -4,8 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"strconv"
-	"sync/atomic"
+	"strings"
+	"sync"
 	"time"
 
 	"github.com/charmbracelet/log"
@@ -14,9 +16,13 @@ import (
 	"github.com/gotd/td/tg"
 	"github.com/merisssas/Bot/common/i18n"
 	"github.com/merisssas/Bot/common/i18n/i18nk"
-	"github.com/merisssas/Bot/common/utils/dlutil"
 	"github.com/merisssas/Bot/common/utils/tgutil"
 	"github.com/merisssas/Bot/pkg/aria2"
+)
+
+const (
+	progressWidth  = 15
+	updateInterval = 3 * time.Second
 )
 
 type ProgressTracker interface {
@@ -26,160 +32,12 @@ type ProgressTracker interface {
 }
 
 type Progress struct {
-	msgID             int
-	chatID            int64
-	start             time.Time
-	lastUpdatePercent atomic.Int32
+	msgID      int
+	chatID     int64
+	startTime  time.Time
+	lastUpdate time.Time
+	mu         sync.Mutex
 }
-
-// OnStart implements ProgressTracker.
-func (p *Progress) OnStart(ctx context.Context, task *Task) {
-	logger := log.FromContext(ctx)
-	p.start = time.Now()
-	p.lastUpdatePercent.Store(0)
-	logger.Infof("Aria2 task started: message_id=%d, chat_id=%d, gid=%s", p.msgID, p.chatID, task.GID)
-	ext := tgutil.ExtFromContext(ctx)
-	if ext == nil {
-		return
-	}
-	entityBuilder := entity.Builder{}
-	if err := styling.Perform(&entityBuilder,
-		styling.Plain(i18n.T(i18nk.BotMsgProgressAria2Start, map[string]any{
-			"GID": task.GID,
-		}))); err != nil {
-		log.FromContext(ctx).Errorf("Failed to build entities: %s", err)
-		return
-	}
-	text, entities := entityBuilder.Complete()
-	req := &tg.MessagesEditMessageRequest{
-		ID: p.msgID,
-	}
-	req.SetMessage(text)
-	req.SetEntities(entities)
-	req.SetReplyMarkup(&tg.ReplyInlineMarkup{
-		Rows: []tg.KeyboardButtonRow{
-			{
-				Buttons: []tg.KeyboardButtonClass{
-					tgutil.BuildCancelButton(task.TaskID()),
-				},
-			},
-		}},
-	)
-	ext.EditMessage(p.chatID, req)
-}
-
-// OnProgress implements ProgressTracker.
-func (p *Progress) OnProgress(ctx context.Context, task *Task, status *aria2.Status) {
-	totalLength, _ := strconv.ParseInt(status.TotalLength, 10, 64)
-	completedLength, _ := strconv.ParseInt(status.CompletedLength, 10, 64)
-	downloadSpeed, _ := strconv.ParseInt(status.DownloadSpeed, 10, 64)
-
-	if totalLength == 0 {
-		return
-	}
-
-	percent := int((completedLength * 100) / totalLength)
-	if p.lastUpdatePercent.Load() == int32(percent) {
-		return
-	}
-	p.lastUpdatePercent.Store(int32(percent))
-
-	log.FromContext(ctx).Debugf("Aria2 progress update: %s, %d/%d", task.GID, completedLength, totalLength)
-
-	entityBuilder := entity.Builder{}
-	if err := styling.Perform(&entityBuilder,
-		styling.Plain(i18n.T(i18nk.BotMsgProgressAria2Downloading, map[string]any{
-			"GID": task.GID,
-		})),
-		styling.Plain(i18n.T(i18nk.BotMsgProgressDownloadedPrefix, nil)),
-		styling.Code(fmt.Sprintf("%.2f MB / %.2f MB", float64(completedLength)/(1024*1024), float64(totalLength)/(1024*1024))),
-		styling.Plain(i18n.T(i18nk.BotMsgProgressCurrentSpeedPrefix, nil)),
-		styling.Bold(fmt.Sprintf("%.2f MB/s", float64(downloadSpeed)/(1024*1024))),
-		styling.Plain(i18n.T(i18nk.BotMsgProgressAvgSpeedPrefix, nil)),
-		styling.Bold(fmt.Sprintf("%.2f MB/s", dlutil.GetSpeed(completedLength, p.start)/(1024*1024))),
-		styling.Plain(i18n.T(i18nk.BotMsgProgressCurrentProgressPrefix, nil)),
-		styling.Bold(fmt.Sprintf("%.2f%%", float64(percent))),
-	); err != nil {
-		log.FromContext(ctx).Errorf("Failed to build entities: %s", err)
-		return
-	}
-	text, entities := entityBuilder.Complete()
-	req := &tg.MessagesEditMessageRequest{
-		ID: p.msgID,
-	}
-	req.SetMessage(text)
-	req.SetEntities(entities)
-	req.SetReplyMarkup(&tg.ReplyInlineMarkup{
-		Rows: []tg.KeyboardButtonRow{
-			{
-				Buttons: []tg.KeyboardButtonClass{
-					tgutil.BuildCancelButton(task.TaskID()),
-				},
-			},
-		}},
-	)
-	ext := tgutil.ExtFromContext(ctx)
-	if ext != nil {
-		ext.EditMessage(p.chatID, req)
-	}
-}
-
-// OnDone implements ProgressTracker.
-func (p *Progress) OnDone(ctx context.Context, task *Task, err error) {
-	logger := log.FromContext(ctx)
-	if err != nil {
-		if errors.Is(err, context.Canceled) {
-			logger.Infof("Aria2 task %s was canceled", task.TaskID())
-			ext := tgutil.ExtFromContext(ctx)
-			if ext != nil {
-				ext.EditMessage(p.chatID, &tg.MessagesEditMessageRequest{
-					ID: p.msgID,
-					Message: i18n.T(i18nk.BotMsgProgressTaskCanceledWithId, map[string]any{
-						"TaskID": task.TaskID(),
-					}),
-				})
-			}
-		} else {
-			logger.Errorf("Aria2 task %s failed: %s", task.TaskID(), err)
-			ext := tgutil.ExtFromContext(ctx)
-			if ext != nil {
-				ext.EditMessage(p.chatID, &tg.MessagesEditMessageRequest{
-					ID: p.msgID,
-					Message: i18n.T(i18nk.BotMsgProgressTaskFailedWithError, map[string]any{
-						"Error": err.Error(),
-					}),
-				})
-			}
-		}
-		return
-	}
-	logger.Infof("Aria2 task %s completed successfully", task.TaskID())
-
-	entityBuilder := entity.Builder{}
-	if err := styling.Perform(&entityBuilder,
-		styling.Plain(i18n.T(i18nk.BotMsgProgressAria2Done, map[string]any{
-			"GID": task.GID,
-		})),
-		styling.Plain(i18n.T(i18nk.BotMsgProgressSavePathPrefix, nil)),
-		styling.Code(fmt.Sprintf("[%s]:%s", task.Storage.Name(), task.StorPath)),
-	); err != nil {
-		logger.Errorf("Failed to build entities: %s", err)
-		return
-	}
-	text, entities := entityBuilder.Complete()
-	req := &tg.MessagesEditMessageRequest{
-		ID: p.msgID,
-	}
-	req.SetMessage(text)
-	req.SetEntities(entities)
-
-	ext := tgutil.ExtFromContext(ctx)
-	if ext != nil {
-		ext.EditMessage(p.chatID, req)
-	}
-}
-
-var _ ProgressTracker = (*Progress)(nil)
 
 func NewProgress(msgID int, userID int64) ProgressTracker {
 	return &Progress{
@@ -187,3 +45,235 @@ func NewProgress(msgID int, userID int64) ProgressTracker {
 		chatID: userID,
 	}
 }
+
+// OnStart implements ProgressTracker.
+func (p *Progress) OnStart(ctx context.Context, task *Task) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	p.startTime = time.Now()
+	p.lastUpdate = time.Now()
+
+	logger := log.FromContext(ctx)
+	logger.Infof("UI started: Task %s (GID: %s)", task.TaskID(), task.GID())
+
+	p.updateMessage(ctx, task, nil, i18n.T(i18nk.BotMsgProgressAria2UiInitializing, nil), false)
+}
+
+// OnProgress implements ProgressTracker.
+func (p *Progress) OnProgress(ctx context.Context, task *Task, status *aria2.Status) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	if !p.lastUpdate.IsZero() && time.Since(p.lastUpdate) < updateInterval {
+		return
+	}
+
+	totalLength, _ := strconv.ParseInt(status.TotalLength, 10, 64)
+	if totalLength == 0 {
+		return
+	}
+
+	p.lastUpdate = time.Now()
+	p.updateMessage(ctx, task, status, "", false)
+}
+
+// OnDone implements ProgressTracker.
+func (p *Progress) OnDone(ctx context.Context, task *Task, err error) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	logger := log.FromContext(ctx)
+	ext := tgutil.ExtFromContext(ctx)
+	if ext == nil {
+		return
+	}
+
+	duration := time.Since(p.startTime).Round(time.Second)
+
+	if err != nil {
+		if errors.Is(err, context.Canceled) {
+			logger.Info("Task canceled")
+			p.editRaw(ctx, i18n.T(i18nk.BotMsgProgressAria2UiCanceled, map[string]any{
+				"TaskID": task.TaskID(),
+			}))
+		} else {
+			logger.Errorf("Task failed: %v", err)
+			p.editRaw(ctx, i18n.T(i18nk.BotMsgProgressAria2UiFailed, map[string]any{
+				"Error": err.Error(),
+			}))
+		}
+		return
+	}
+
+	logger.Info("Task completed successfully")
+
+	entityBuilder := entity.Builder{}
+	if err := styling.Perform(&entityBuilder,
+		styling.Plain("✅ "), styling.Bold(i18n.T(i18nk.BotMsgProgressAria2UiCompletedTitle, nil)), styling.Plain("\n\n"),
+		styling.Plain("📄 "), styling.Code(task.Title()), styling.Plain("\n"),
+		styling.Plain("💾 "), styling.Code(task.Storage.Name()), styling.Plain("\n"),
+		styling.Plain("⏱️ "), styling.Code(i18n.T(i18nk.BotMsgProgressAria2UiDuration, map[string]any{
+			"Duration": duration.String(),
+		})), styling.Plain("\n"),
+		styling.Plain("📂 "), styling.Code(task.StorPath),
+	); err != nil {
+		logger.Errorf("Failed to build entities: %v", err)
+		return
+	}
+
+	text, entities := entityBuilder.Complete()
+	req := &tg.MessagesEditMessageRequest{
+		ID:       p.msgID,
+		Message:  text,
+		Entities: entities,
+		ReplyMarkup: &tg.ReplyInlineMarkup{
+			Rows: []tg.KeyboardButtonRow{},
+		},
+	}
+	ext.EditMessage(p.chatID, req)
+}
+
+func (p *Progress) updateMessage(ctx context.Context, task *Task, status *aria2.Status, customStatus string, isDone bool) {
+	ext := tgutil.ExtFromContext(ctx)
+	if ext == nil {
+		return
+	}
+
+	var (
+		percent      float64
+		totalStr     string
+		completedStr string
+		speedStr     string
+		etaStr       string
+		bar          string
+		header       string
+	)
+
+	if status != nil {
+		total, _ := strconv.ParseFloat(status.TotalLength, 64)
+		completed, _ := strconv.ParseFloat(status.CompletedLength, 64)
+		speed, _ := strconv.ParseFloat(status.DownloadSpeed, 64)
+
+		if total > 0 {
+			percent = (completed / total) * 100
+		}
+
+		if speed > 0 && total > completed {
+			remainingSeconds := (total - completed) / speed
+			if remainingSeconds < 86400 {
+				etaDuration := time.Duration(remainingSeconds) * time.Second
+				etaStr = etaDuration.Round(time.Second).String()
+			} else {
+				etaStr = i18n.T(i18nk.BotMsgProgressAria2UiEtaOverDay, nil)
+			}
+		} else {
+			etaStr = i18n.T(i18nk.BotMsgProgressAria2UiEtaUnknown, nil)
+		}
+
+		totalStr = humanizeBytes(total)
+		completedStr = humanizeBytes(completed)
+		speedStr = humanizeBytes(speed) + "/s"
+		bar = drawProgressBar(percent, progressWidth)
+
+		header = i18n.T(i18nk.BotMsgProgressAria2UiDownloadingHeader, map[string]any{
+			"GID": task.GID(),
+		})
+	} else {
+		header = i18n.T(i18nk.BotMsgProgressAria2UiPreparing, nil)
+		bar = drawProgressBar(0, progressWidth)
+		etaStr = i18n.T(i18nk.BotMsgProgressAria2UiCalculating, nil)
+		speedStr = i18n.T(i18nk.BotMsgProgressAria2UiZeroSpeed, nil)
+		totalStr = i18n.T(i18nk.BotMsgProgressAria2UiUnknownTotal, nil)
+		completedStr = i18n.T(i18nk.BotMsgProgressAria2UiZeroCompleted, nil)
+	}
+
+	if customStatus != "" {
+		header = customStatus
+	}
+
+	entityBuilder := entity.Builder{}
+	if err := styling.Perform(&entityBuilder,
+		styling.Bold(header), styling.Plain("\n"),
+		styling.Code(fmt.Sprintf("%s %.1f%%", bar, percent)), styling.Plain("\n\n"),
+		styling.Plain("📦 "), styling.Bold(fmt.Sprintf("%s / %s", completedStr, totalStr)), styling.Plain("\n"),
+		styling.Plain("🚀 "), styling.Code(speedStr),
+		styling.Plain("  |  "),
+		styling.Plain("⏳ "), styling.Code(etaStr),
+	); err != nil {
+		log.FromContext(ctx).Error("Failed to build UI entities")
+		return
+	}
+
+	text, entities := entityBuilder.Complete()
+	req := &tg.MessagesEditMessageRequest{
+		ID:       p.msgID,
+		Message:  text,
+		Entities: entities,
+	}
+
+	if !isDone {
+		req.SetReplyMarkup(&tg.ReplyInlineMarkup{
+			Rows: []tg.KeyboardButtonRow{
+				{
+					Buttons: []tg.KeyboardButtonClass{
+						tgutil.BuildCancelButton(task.TaskID()),
+					},
+				},
+			},
+		})
+	}
+
+	ext.EditMessage(p.chatID, req)
+}
+
+func (p *Progress) editRaw(ctx context.Context, rawHTML string) {
+	ext := tgutil.ExtFromContext(ctx)
+	if ext == nil {
+		return
+	}
+	ext.EditMessage(p.chatID, &tg.MessagesEditMessageRequest{
+		ID:      p.msgID,
+		Message: rawHTML,
+	})
+}
+
+func drawProgressBar(percent float64, width int) string {
+	if percent < 0 {
+		percent = 0
+	}
+	if percent > 100 {
+		percent = 100
+	}
+
+	fullChars := int((percent / 100) * float64(width))
+	emptyChars := width - fullChars
+
+	if fullChars < 0 {
+		fullChars = 0
+	}
+	if emptyChars < 0 {
+		emptyChars = 0
+	}
+
+	return fmt.Sprintf("[%s%s]", strings.Repeat("█", fullChars), strings.Repeat("░", emptyChars))
+}
+
+func humanizeBytes(value float64) string {
+	sizes := []string{"B", "KB", "MB", "GB", "TB", "PB"}
+	if value < 10 {
+		return fmt.Sprintf("%.0f B", value)
+	}
+	exp := math.Floor(math.Log(value) / math.Log(1024))
+	if exp < 0 {
+		exp = 0
+	}
+	if int(exp) >= len(sizes) {
+		exp = float64(len(sizes) - 1)
+	}
+	suffix := sizes[int(exp)]
+	val := value / math.Pow(1024, exp)
+	return fmt.Sprintf("%.2f %s", val, suffix)
+}
+
+var _ ProgressTracker = (*Progress)(nil)

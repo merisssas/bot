@@ -199,6 +199,12 @@ go vet ./...
 
 Teleload is structured for enterprise-grade evolution:
 
+## Downloader Audit & Roadmap
+
+For a detailed audit of downloader-related modules, duplicate/legacy surfaces, and a prioritized roadmap of reliability features (resume, segmentation, checksum, QoS, CLI flags), see:
+
+- `docs/downloader_audit.md`
+
 - Horizontal scaling through task queues.
 - Advanced metadata pipelines.
 - More storage backends and parser plugins.
