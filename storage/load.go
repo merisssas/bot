@@ -41,11 +41,15 @@ func GetStorageByUserIDAndName(ctx context.Context, chatID int64, name string) (
 		return nil, ErrStorageNameEmpty
 	}
 
-	if !config.C().HasStorage(chatID, name) {
-		return nil, fmt.Errorf("no storage %s for user %d", name, chatID)
+	if config.C().HasStorage(chatID, name) {
+		return GetStorageByName(ctx, name)
 	}
 
-	return GetStorageByName(ctx, name)
+	if name == TelegramDownloadStorageName {
+		return GetTelegramDownloadStorage(ctx, chatID)
+	}
+
+	return nil, fmt.Errorf("no storage %s for user %d", name, chatID)
 }
 
 func GetUserStorages(ctx context.Context, chatID int64) []Storage {

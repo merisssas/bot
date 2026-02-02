@@ -266,9 +266,12 @@ bot:
     config:
       prompt_select_option: "Please select an option to configure"
       button_filename_strategy: "Filename strategy"
+      button_telegram_download: "Telegram download"
       error_invalid_callback_data: "Invalid callback data"
       error_invalid_template: "Invalid template, please check syntax\n{{.Error}}"
       info_filename_strategy_set: "Filename strategy set to: {{.Strategy}}"
+      info_telegram_download_enabled: "Telegram download enabled"
+      info_telegram_download_disabled: "Telegram download disabled"
       prompt_select_filename_strategy: "Please select filename strategy, current strategy: {{.Strategy}}"
       fnametmpl_help: |-
         Use this command to set filename template, for example:

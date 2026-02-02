@@ -11,6 +11,7 @@ import (
 	"github.com/merisssas/Bot/client/bot/handlers/utils/mediautil"
 	"github.com/merisssas/Bot/client/bot/handlers/utils/msgelem"
 	"github.com/merisssas/Bot/client/bot/handlers/utils/shortcut"
+	"github.com/merisssas/Bot/client/bot/handlers/utils/storutil"
 	"github.com/merisssas/Bot/common/i18n"
 	"github.com/merisssas/Bot/common/i18n/i18nk"
 	"github.com/merisssas/Bot/common/utils/tgutil"
@@ -106,7 +107,7 @@ func processMediaGroup(ctx *ext.Context, update *ext.Update, groupID int64) {
 		return
 	}
 
-	stors := storage.GetUserStorages(ctx, userId)
+	stors := storutil.GetUserStoragesWithTelegram(ctx, userId)
 	markup, err := msgelem.BuildAddSelectStorageKeyboard(stors, tcbdata.Add{
 		Files:   items,
 		AsBatch: len(items) > 1,

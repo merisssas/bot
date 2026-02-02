@@ -14,6 +14,7 @@ import (
 	"github.com/merisssas/Bot/client/bot/handlers/utils/dirutil"
 	"github.com/merisssas/Bot/client/bot/handlers/utils/msgelem"
 	"github.com/merisssas/Bot/client/bot/handlers/utils/shortcut"
+	"github.com/merisssas/Bot/client/bot/handlers/utils/storutil"
 	"github.com/merisssas/Bot/common/i18n"
 	"github.com/merisssas/Bot/common/i18n/i18nk"
 	"github.com/merisssas/Bot/common/utils/fsutil"
@@ -69,7 +70,7 @@ func handleTextMessage(ctx *ext.Context, u *ext.Update) error {
 	}
 	logger.Debug("Parsed item from text message", "title", item.Title, "url", item.URL)
 	userID := u.GetUserChat().GetID()
-	markup, err := msgelem.BuildAddSelectStorageKeyboard(storage.GetUserStorages(ctx, userID), tcbdata.Add{
+	markup, err := msgelem.BuildAddSelectStorageKeyboard(storutil.GetUserStoragesWithTelegram(ctx, userID), tcbdata.Add{
 		TaskType:   tasktype.TaskTypeParseditem,
 		ParsedItem: item,
 	})

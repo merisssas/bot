@@ -8,6 +8,7 @@ import (
 	"github.com/merisssas/Bot/client/bot/handlers/utils/mediautil"
 	"github.com/merisssas/Bot/client/bot/handlers/utils/msgelem"
 	"github.com/merisssas/Bot/client/bot/handlers/utils/shortcut"
+	"github.com/merisssas/Bot/client/bot/handlers/utils/storutil"
 	"github.com/merisssas/Bot/common/i18n"
 	"github.com/merisssas/Bot/common/i18n/i18nk"
 	"github.com/merisssas/Bot/database"
@@ -33,7 +34,7 @@ func handleMediaMessage(ctx *ext.Context, update *ext.Update) error {
 		return err
 	}
 
-	stors := storage.GetUserStorages(ctx, userId)
+	stors := storutil.GetUserStoragesWithTelegram(ctx, userId)
 	req, err := msgelem.BuildAddOneSelectStorageMessage(ctx, stors, file, msg.ID)
 	if err != nil {
 		logger.Errorf("Failed to build storage selection message: %s", err)

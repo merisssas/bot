@@ -17,19 +17,16 @@ import (
 )
 
 func handleConfigCmd(ctx *ext.Context, update *ext.Update) error {
+	userID := update.GetUserChat().GetID()
+	user, err := database.GetUserByChatID(ctx, userID)
+	if err != nil {
+		ctx.Reply(update, ext.ReplyTextString(i18n.T(i18nk.BotMsgCommonErrorGetUserWithErrFailed, map[string]any{
+			"Error": err.Error(),
+		})), nil)
+		return dispatcher.EndGroups
+	}
 	ctx.Reply(update, ext.ReplyTextString(i18n.T(i18nk.BotMsgConfigPromptSelectOption)), &ext.ReplyOpts{
-		Markup: &tg.ReplyInlineMarkup{
-			Rows: []tg.KeyboardButtonRow{
-				{
-					Buttons: []tg.KeyboardButtonClass{
-						&tg.KeyboardButtonCallback{
-							Text: i18n.T(i18nk.BotMsgConfigButtonFilenameStrategy),
-							Data: fmt.Appendf(nil, "%s %s", tcbdata.TypeConfig, "fnamest"),
-						},
-					},
-				},
-			},
-		},
+		Markup: buildConfigMarkup(user),
 	})
 	return dispatcher.EndGroups
 }
@@ -51,6 +48,8 @@ func handleConfigCallback(ctx *ext.Context, update *ext.Update) error {
 	switch args[1] {
 	case "fnamest":
 		return handleConfigFnameSTCallback(ctx, update)
+	case "tgdl":
+		return handleConfigTelegramDownloadCallback(ctx, update)
 	default:
 		return invaildDataAnswer()
 	}
@@ -141,4 +140,53 @@ func handleConfigFnameTmpl(ctx *ext.Context, update *ext.Update) error {
 	}
 	ctx.Reply(update, ext.ReplyTextString(i18n.T(i18nk.BotMsgConfigInfoTemplateUpdated, nil)), nil)
 	return dispatcher.EndGroups
+}
+
+func handleConfigTelegramDownloadCallback(ctx *ext.Context, update *ext.Update) error {
+	userID := update.CallbackQuery.GetUserID()
+	user, err := database.GetUserByChatID(ctx, userID)
+	if err != nil {
+		return err
+	}
+	user.TelegramDownloadDisabled = !user.TelegramDownloadDisabled
+	if err := database.UpdateUser(ctx, user); err != nil {
+		return err
+	}
+	statusMsg := i18n.T(i18nk.BotMsgConfigInfoTelegramDownloadEnabled)
+	if user.TelegramDownloadDisabled {
+		statusMsg = i18n.T(i18nk.BotMsgConfigInfoTelegramDownloadDisabled)
+	}
+	ctx.EditMessage(userID, &tg.MessagesEditMessageRequest{
+		ID:          update.CallbackQuery.GetMsgID(),
+		Message:     statusMsg,
+		ReplyMarkup: buildConfigMarkup(user),
+	})
+	return dispatcher.EndGroups
+}
+
+func buildConfigMarkup(user *database.User) *tg.ReplyInlineMarkup {
+	telegramStatus := "✅"
+	if user.TelegramDownloadDisabled {
+		telegramStatus = "❌"
+	}
+	return &tg.ReplyInlineMarkup{
+		Rows: []tg.KeyboardButtonRow{
+			{
+				Buttons: []tg.KeyboardButtonClass{
+					&tg.KeyboardButtonCallback{
+						Text: i18n.T(i18nk.BotMsgConfigButtonFilenameStrategy),
+						Data: fmt.Appendf(nil, "%s %s", tcbdata.TypeConfig, "fnamest"),
+					},
+				},
+			},
+			{
+				Buttons: []tg.KeyboardButtonClass{
+					&tg.KeyboardButtonCallback{
+						Text: fmt.Sprintf("%s %s", i18n.T(i18nk.BotMsgConfigButtonTelegramDownload), telegramStatus),
+						Data: fmt.Appendf(nil, "%s %s", tcbdata.TypeConfig, "tgdl"),
+					},
+				},
+			},
+		},
+	}
 }

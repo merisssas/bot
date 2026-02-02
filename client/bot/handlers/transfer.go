@@ -10,6 +10,7 @@ import (
 	"github.com/charmbracelet/log"
 	"github.com/gotd/td/tg"
 	"github.com/merisssas/Bot/client/bot/handlers/utils/msgelem"
+	"github.com/merisssas/Bot/client/bot/handlers/utils/storutil"
 	"github.com/merisssas/Bot/common/i18n"
 	"github.com/merisssas/Bot/common/i18n/i18nk"
 	"github.com/merisssas/Bot/common/utils/strutil"
@@ -130,7 +131,7 @@ func handleTransferCmd(ctx *ext.Context, update *ext.Update) error {
 	}
 
 	// Build storage selection keyboard
-	markup, err := msgelem.BuildAddSelectStorageKeyboard(storage.GetUserStorages(ctx, userID), tcbdata.Add{
+	markup, err := msgelem.BuildAddSelectStorageKeyboard(storutil.GetUserStoragesWithTelegram(ctx, userID), tcbdata.Add{
 		TaskType:               tasktype.TaskTypeTransfer,
 		TransferSourceStorName: sourceStorageName,
 		TransferSourcePath:     sourcePath,

@@ -13,6 +13,7 @@ import (
 	"github.com/merisssas/Bot/client/bot/handlers/utils/dirutil"
 	"github.com/merisssas/Bot/client/bot/handlers/utils/msgelem"
 	"github.com/merisssas/Bot/client/bot/handlers/utils/shortcut"
+	"github.com/merisssas/Bot/client/bot/handlers/utils/storutil"
 	"github.com/merisssas/Bot/common/i18n"
 	"github.com/merisssas/Bot/common/i18n/i18nk"
 	"github.com/merisssas/Bot/pkg/enums/tasktype"
@@ -28,7 +29,7 @@ func handleTelegraphUrlMessage(ctx *ext.Context, update *ext.Update) error {
 		return err
 	}
 	userID := update.GetUserChat().GetID()
-	stors := storage.GetUserStorages(ctx, userID)
+	stors := storutil.GetUserStoragesWithTelegram(ctx, userID)
 	markup, err := msgelem.BuildAddSelectStorageKeyboard(stors, tcbdata.Add{
 		TaskType:    tasktype.TaskTypeTphpics,
 		TphPageNode: result.Page,

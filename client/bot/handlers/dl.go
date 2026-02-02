@@ -9,6 +9,7 @@ import (
 	"github.com/charmbracelet/log"
 	"github.com/duke-git/lancet/v2/slice"
 	"github.com/merisssas/Bot/client/bot/handlers/utils/msgelem"
+	"github.com/merisssas/Bot/client/bot/handlers/utils/storutil"
 	"github.com/merisssas/Bot/common/i18n"
 	"github.com/merisssas/Bot/common/i18n/i18nk"
 	"github.com/merisssas/Bot/config"
@@ -39,7 +40,7 @@ func handleDlCmd(ctx *ext.Context, update *ext.Update) error {
 		ctx.Reply(update, ext.ReplyTextString(i18n.T(i18nk.BotMsgDlErrorNoValidLinks)), nil)
 		return nil
 	}
-	markup, err := msgelem.BuildAddSelectStorageKeyboard(storage.GetUserStorages(ctx, update.GetUserChat().GetID()), tcbdata.Add{
+	markup, err := msgelem.BuildAddSelectStorageKeyboard(storutil.GetUserStoragesWithTelegram(ctx, update.GetUserChat().GetID()), tcbdata.Add{
 		TaskType:    tasktype.TaskTypeDirectlinks,
 		DirectLinks: links,
 	})
@@ -98,7 +99,7 @@ func handleAria2DlCmd(ctx *ext.Context, update *ext.Update) error {
 	}
 
 	// Build storage selection keyboard (don't add to aria2 yet)
-	markup, err := msgelem.BuildAddSelectStorageKeyboard(storage.GetUserStorages(ctx, update.GetUserChat().GetID()), tcbdata.Add{
+	markup, err := msgelem.BuildAddSelectStorageKeyboard(storutil.GetUserStoragesWithTelegram(ctx, update.GetUserChat().GetID()), tcbdata.Add{
 		TaskType:  tasktype.TaskTypeAria2,
 		Aria2URIs: links,
 	})

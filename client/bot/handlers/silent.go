@@ -7,6 +7,7 @@ import (
 	"github.com/celestix/gotgproto/ext"
 	"github.com/gotd/td/tg"
 	"github.com/merisssas/Bot/client/bot/handlers/utils/msgelem"
+	"github.com/merisssas/Bot/client/bot/handlers/utils/storutil"
 	"github.com/merisssas/Bot/common/cache"
 	"github.com/merisssas/Bot/common/i18n"
 	"github.com/merisssas/Bot/common/i18n/i18nk"
@@ -131,7 +132,7 @@ func handleSetDefaultCallback(ctx *ext.Context, update *ext.Update) error {
 
 func handleStorageCmd(ctx *ext.Context, update *ext.Update) error {
 	userID := update.GetUserChat().GetID()
-	storages := storage.GetUserStorages(ctx, userID)
+	storages := storutil.GetUserStoragesWithTelegram(ctx, userID)
 	if len(storages) == 0 {
 		ctx.Reply(update, ext.ReplyTextString(i18n.T(i18nk.BotMsgCommonErrorNoAvailableStorage, nil)), nil)
 		return nil

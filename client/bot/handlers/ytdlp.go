@@ -9,6 +9,7 @@ import (
 	"github.com/charmbracelet/log"
 
 	"github.com/merisssas/Bot/client/bot/handlers/utils/msgelem"
+	"github.com/merisssas/Bot/client/bot/handlers/utils/storutil"
 	"github.com/merisssas/Bot/common/i18n"
 	"github.com/merisssas/Bot/common/i18n/i18nk"
 	"github.com/merisssas/Bot/pkg/enums/tasktype"
@@ -73,7 +74,7 @@ func handleYtdlpCmd(ctx *ext.Context, update *ext.Update) error {
 	logger.Debugf("Preparing yt-dlp download for %d URL(s) with %d flag(s)", len(urls), len(flags))
 
 	// Build storage selection keyboard
-	markup, err := msgelem.BuildAddSelectStorageKeyboard(storage.GetUserStorages(ctx, update.GetUserChat().GetID()), tcbdata.Add{
+	markup, err := msgelem.BuildAddSelectStorageKeyboard(storutil.GetUserStoragesWithTelegram(ctx, update.GetUserChat().GetID()), tcbdata.Add{
 		TaskType:   tasktype.TaskTypeYtdlp,
 		YtdlpURLs:  urls,
 		YtdlpFlags: flags,

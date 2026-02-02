@@ -7,6 +7,7 @@ import (
 	"github.com/merisssas/Bot/client/bot/handlers/utils/dirutil"
 	"github.com/merisssas/Bot/client/bot/handlers/utils/msgelem"
 	"github.com/merisssas/Bot/client/bot/handlers/utils/shortcut"
+	"github.com/merisssas/Bot/client/bot/handlers/utils/storutil"
 	"github.com/merisssas/Bot/common/i18n"
 	"github.com/merisssas/Bot/common/i18n/i18nk"
 	"github.com/merisssas/Bot/pkg/tcbdata"
@@ -20,7 +21,7 @@ func handleMessageLink(ctx *ext.Context, update *ext.Update) error {
 	}
 	logger := log.FromContext(ctx)
 	userId := update.GetUserChat().GetID()
-	stors := storage.GetUserStorages(ctx, userId)
+	stors := storutil.GetUserStoragesWithTelegram(ctx, userId)
 	if len(files) == 1 {
 		req, err := msgelem.BuildAddOneSelectStorageMessage(ctx, stors, files[0], replied.ID)
 		if err != nil {
