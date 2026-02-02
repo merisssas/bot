@@ -148,6 +148,7 @@ const (
 	BotMsgProgressAria2UiEtaUnknown                       Key = "bot.msg.progress.aria2_ui_eta_unknown"
 	BotMsgProgressAria2UiFailed                           Key = "bot.msg.progress.aria2_ui_failed"
 	BotMsgProgressAria2UiInitializing                     Key = "bot.msg.progress.aria2_ui_initializing"
+	BotMsgProgressAria2UiPeers                            Key = "bot.msg.progress.aria2_ui_peers"
 	BotMsgProgressAria2UiPreparing                        Key = "bot.msg.progress.aria2_ui_preparing"
 	BotMsgProgressAria2UiUnknownTotal                     Key = "bot.msg.progress.aria2_ui_unknown_total"
 	BotMsgProgressAria2UiZeroCompleted                    Key = "bot.msg.progress.aria2_ui_zero_completed"

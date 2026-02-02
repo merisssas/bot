@@ -141,8 +141,30 @@ func (t *Task) getStatus(ctx context.Context) (*aria2.Status, error) {
 	logger := log.FromContext(ctx)
 
 	// Try active/waiting queue first
-	status, err := t.Aria2Client.TellStatus(ctx, t.GID())
+	status, err := t.Aria2Client.TellStatus(ctx, t.GID(),
+		"status",
+		"totalLength",
+		"completedLength",
+		"downloadSpeed",
+		"connections",
+		"numSeeders",
+		"files",
+		"followedBy",
+		"errorCode",
+		"errorMessage",
+		"dir",
+		"bittorrent",
+		"infoHash",
+	)
 	if err == nil {
+		if len(status.Files) == 0 {
+			files, filesErr := t.Aria2Client.GetFiles(ctx, t.GID())
+			if filesErr != nil {
+				logger.Debugf("Failed to get aria2 files for GID %s: %v", t.GID(), filesErr)
+			} else {
+				status.Files = files
+			}
+		}
 		return status, nil
 	}
 

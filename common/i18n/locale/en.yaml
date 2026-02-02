@@ -370,6 +370,7 @@ bot:
       aria2_ui_eta_over_day: "> 1 day"
       aria2_ui_eta_unknown: "∞"
       aria2_ui_downloading_header: "⬇️ Downloading (GID: {{.GID}})"
+      aria2_ui_peers: "🌱 {{.Seeders}} seeders  |  🧲 {{.Leechers}} leechers"
       aria2_ui_preparing: "⏳ Preparing..."
       aria2_ui_calculating: "Calculating..."
       aria2_ui_zero_speed: "0 B/s"

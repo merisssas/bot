@@ -141,6 +141,7 @@ func (p *Progress) updateMessage(ctx context.Context, task *Task, status *aria2.
 		completedStr string
 		speedStr     string
 		etaStr       string
+		peerStr      string
 		bar          string
 		header       string
 	)
@@ -185,6 +186,7 @@ func (p *Progress) updateMessage(ctx context.Context, task *Task, status *aria2.
 		header = i18n.T(i18nk.BotMsgProgressAria2UiDownloadingHeader, map[string]any{
 			"GID": task.GID(),
 		})
+		peerStr = formatTorrentPeers(status)
 	} else {
 		header = i18n.T(i18nk.BotMsgProgressAria2UiPreparing, nil)
 		bar = drawProgressBar(0, progressWidth)
@@ -199,8 +201,19 @@ func (p *Progress) updateMessage(ctx context.Context, task *Task, status *aria2.
 	}
 
 	entityBuilder := entity.Builder{}
+	if err := styling.Perform(&entityBuilder, styling.Bold(header), styling.Plain("\n")); err != nil {
+		log.FromContext(ctx).Error("Failed to build UI entities")
+		return
+	}
+
+	if peerStr != "" {
+		if err := styling.Perform(&entityBuilder, styling.Plain(peerStr), styling.Plain("\n")); err != nil {
+			log.FromContext(ctx).Error("Failed to build UI entities")
+			return
+		}
+	}
+
 	if err := styling.Perform(&entityBuilder,
-		styling.Bold(header), styling.Plain("\n"),
 		styling.Code(fmt.Sprintf("%s %.1f%%", bar, percent)), styling.Plain("\n\n"),
 		styling.Plain("📦 "), styling.Bold(fmt.Sprintf("%s / %s", completedStr, totalStr)), styling.Plain("\n"),
 		styling.Plain("🚀 "), styling.Code(speedStr),
@@ -311,6 +324,28 @@ func humanizeBytes(value float64) string {
 	suffix := sizes[int(exp)]
 	val := value / math.Pow(1024, exp)
 	return fmt.Sprintf("%.2f %s", val, suffix)
+}
+
+func formatTorrentPeers(status *aria2.Status) string {
+	if status == nil {
+		return ""
+	}
+
+	seeders, _ := strconv.Atoi(status.NumSeeders)
+	connections, _ := strconv.Atoi(status.Connections)
+	if seeders == 0 && connections == 0 {
+		return ""
+	}
+
+	leechers := connections - seeders
+	if leechers < 0 {
+		leechers = 0
+	}
+
+	return i18n.T(i18nk.BotMsgProgressAria2UiPeers, map[string]any{
+		"Seeders":  seeders,
+		"Leechers": leechers,
+	})
 }
 
 var _ ProgressTracker = (*Progress)(nil)
