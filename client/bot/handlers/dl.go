@@ -16,7 +16,6 @@ import (
 	"github.com/merisssas/Bot/pkg/aria2"
 	"github.com/merisssas/Bot/pkg/enums/tasktype"
 	"github.com/merisssas/Bot/pkg/tcbdata"
-	"github.com/merisssas/Bot/storage"
 )
 
 func handleDlCmd(ctx *ext.Context, update *ext.Update) error {

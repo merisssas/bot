@@ -14,7 +14,6 @@ import (
 	"github.com/merisssas/Bot/common/i18n/i18nk"
 	"github.com/merisssas/Bot/pkg/enums/tasktype"
 	"github.com/merisssas/Bot/pkg/tcbdata"
-	"github.com/merisssas/Bot/storage"
 )
 
 func handleYtdlpCmd(ctx *ext.Context, update *ext.Update) error {
