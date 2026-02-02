@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>Deployment Guide on Save Any Bot</title><link>https://sabot.unv.app/deployment/</link><description>Recent content in Deployment Guide on Save Any Bot</description><generator>Hugo</generator><language>en</language><atom:link href="https://sabot.unv.app/deployment/index.xml" rel="self" type="application/rss+xml"/><item><title>Installation and Updates</title><link>https://sabot.unv.app/deployment/installation/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://sabot.unv.app/deployment/installation/</guid><description>&lt;h1 id="installation-and-updates">
+<?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>Deployment Guide on Teleload</title><link>https://github.com/merisssas/Bot/deployment/</link><description>Recent content in Deployment Guide on Teleload</description><generator>Hugo</generator><language>en</language><atom:link href="https://github.com/merisssas/Bot/deployment/index.xml" rel="self" type="application/rss+xml"/><item><title>Installation and Updates</title><link>https://github.com/merisssas/Bot/deployment/installation/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://github.com/merisssas/Bot/deployment/installation/</guid><description>&lt;h1 id="installation-and-updates">
  Installation and Updates
  &lt;a class="anchor" href="#installation-and-updates">#&lt;/a>
 &lt;/h1>
@@ -9,8 +9,8 @@
 &lt;p>Download the binary file for your platform from the &lt;a href="https://github.com/merisssas/Bot/releases">Release&lt;/a> page.&lt;/p>
 &lt;p>Create a &lt;code>config.toml&lt;/code> file in the extracted directory, refer to the &lt;a href="../configuration">Configuration Guide&lt;/a> to edit the configuration file.&lt;/p>
 &lt;p>Run:&lt;/p>
-&lt;div class="highlight">&lt;pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>chmod +x saveany-bot
-&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>./saveany-bot
+&lt;div class="highlight">&lt;pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>chmod +x Teleload
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>./Teleload
 &lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h3 id="daemon">
  Daemon
  &lt;a class="anchor" href="#daemon">#&lt;/a>
@@ -22,16 +22,16 @@
 &lt;label for="tabs-daemon-0">systemd (Regular Linux)&lt;/label>
 &lt;div class="book-tabs-content markdown-inner">
 
-Create a file &lt;code>/etc/systemd/system/saveany-bot.service&lt;/code> and write the following content:
+Create a file &lt;code>/etc/systemd/system/Teleload.service&lt;/code> and write the following content:
 
 &lt;pre>&lt;code class="language-text">[Unit]
-Description=SaveAnyBot
+Description=Teleload
 After=systemd-user-sessions.service
 
 [Service]
 Type=simple
 WorkingDirectory=/yourpath/
-ExecStart=/yourpath/saveany-bot
+ExecStart=/yourpath/Teleload
 Restart=always
 
 [Install]
@@ -39,7 +39,7 @@ WantedBy=multi-user.target&lt;/code>&lt;/pre>
 
 Enable startup on boot and start the service:
 
-&lt;pre>&lt;code class="language-text">systemctl enable --now saveany-bot&lt;/code>&lt;/pre>
+&lt;pre>&lt;code class="language-text">systemctl enable --now Teleload&lt;/code>&lt;/pre>
 
 &lt;/div>
 
@@ -51,26 +51,26 @@ Enable startup on boot and start the service:
 
 &lt;h4>Add Boot Autostart Service&lt;/h4>
 
-Create a file &lt;code>/etc/init.d/saveanybot&lt;/code>, refer to &lt;a href="https://github.com/merisssas/Bot/blob/main/docs/confs/wrt_init" target="_blank">wrt_init&lt;/a> and modify as needed:
+Create a file &lt;code>/etc/init.d/Teleloadbot&lt;/code>, refer to &lt;a href="https://github.com/merisssas/Bot/blob/main/docs/confs/wrt_init" target="_blank">wrt_init&lt;/a> and modify as needed:
 
 &lt;pre>&lt;code class="language-text">#!/bin/sh /etc/rc.common
 
-#This is the OpenWRT init.d script for SaveAnyBot
+#This is the OpenWRT init.d script for Teleload
 
 START=99 
 STOP=10
-description=&amp;amp;#34;SaveAnyBot&amp;amp;#34;
+description=&amp;amp;#34;Teleload&amp;amp;#34;
 
-WORKING_DIR=&amp;amp;#34;/mnt/mmc1-1/SaveAnyBot&amp;amp;#34;
-EXEC_PATH=&amp;amp;#34;$WORKING_DIR/saveany-bot&amp;amp;#34;
+WORKING_DIR=&amp;amp;#34;/mnt/mmc1-1/Teleload&amp;amp;#34;
+EXEC_PATH=&amp;amp;#34;$WORKING_DIR/Teleload&amp;amp;#34;
 start() {
- echo &amp;amp;#34;Starting SaveAnyBot...&amp;amp;#34;
+ echo &amp;amp;#34;Starting Teleload...&amp;amp;#34;
  cd $WORKING_DIR
  $EXEC_PATH &amp;amp;amp;
 }
 stop() {
- echo &amp;amp;#34;Stopping SaveAnyBot...&amp;amp;#34;
- killall saveany-bot
+ echo &amp;amp;#34;Stopping Teleload...&amp;amp;#34;
+ killall Teleload
 }
 reload() {
  stop
@@ -79,11 +79,11 @@ reload() {
 
 Set permissions:
 
-&lt;pre>&lt;code class="language-text">chmod &amp;#43;x /etc/init.d/saveanybot&lt;/code>&lt;/pre>
+&lt;pre>&lt;code class="language-text">chmod &amp;#43;x /etc/init.d/Teleloadbot&lt;/code>&lt;/pre>
 
-Then copy the file to &lt;code>/etc/rc.d&lt;/code> and rename it to &lt;code>S99saveanybot&lt;/code>, also set permissions:
+Then copy the file to &lt;code>/etc/rc.d&lt;/code> and rename it to &lt;code>S99Teleloadbot&lt;/code>, also set permissions:
 
-&lt;pre>&lt;code class="language-text">chmod &amp;#43;x /etc/rc.d/S99saveanybot&lt;/code>&lt;/pre>
+&lt;pre>&lt;code class="language-text">chmod &amp;#43;x /etc/rc.d/S99Teleloadbot&lt;/code>&lt;/pre>
 
 &lt;h4>Add Shortcut Commands&lt;/h4>
 
