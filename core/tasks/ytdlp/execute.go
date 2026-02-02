@@ -13,6 +13,7 @@ import (
 	"math/rand"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 	"sync"
@@ -288,12 +289,12 @@ func (t *Task) downloadSingle(ctx context.Context, logger *log.Logger, tempDir, 
 	logger.Infof("⬇️ Downloading %s", url)
 
 	args := append(t.Flags, url)
-	_, err := cmd.Run(ctx, args...)
-	if err != nil {
-		if errors.Is(err, context.Canceled) {
-			return nil, newTaskError(ErrorCodeCanceled, "download", err)
+	runResult, runErr := cmd.Run(ctx, args...)
+	if runErr != nil {
+		if errors.Is(runErr, context.Canceled) {
+			return nil, newTaskError(ErrorCodeCanceled, "download", runErr)
 		}
-		logger.Warnf("yt-dlp exited with warning/error: %v (validating files)", err)
+		logger.Warnf("yt-dlp exited with warning/error: %v (validating files)", runErr)
 	}
 
 	files, err := collectValidFiles(logger, tempDir)
@@ -301,6 +302,16 @@ func (t *Task) downloadSingle(ctx context.Context, logger *log.Logger, tempDir, 
 		return nil, newTaskError(ErrorCodeDownloadFailed, "scan files", err)
 	}
 	if len(files) == 0 {
+		if hasUnmergedStreams(tempDir) {
+			return nil, newTaskError(
+				ErrorCodeDownloadFailed,
+				"merge streams",
+				errors.New("yt-dlp produced separate video/audio streams; ffmpeg is required to merge them"),
+			)
+		}
+		if detail := summarizeYtdlpFailure(runErr, runResult); detail != "" {
+			return nil, newTaskError(ErrorCodeDownloadFailed, "validate files", fmt.Errorf("no valid file produced; %s", detail))
+		}
 		return nil, newTaskError(ErrorCodeDownloadFailed, "validate files", errors.New("no valid file produced"))
 	}
 
@@ -484,6 +495,58 @@ func isPartialFile(name string) bool {
 		strings.HasSuffix(name, ".temp") ||
 		strings.Contains(name, ".f137") ||
 		strings.Contains(name, ".f140")
+}
+
+func hasUnmergedStreams(tempDir string) bool {
+	files, err := os.ReadDir(tempDir)
+	if err != nil {
+		return false
+	}
+
+	streamPattern := regexp.MustCompile(`\.f\d+\.`)
+	for _, file := range files {
+		if file.IsDir() {
+			continue
+		}
+		if streamPattern.MatchString(file.Name()) {
+			return true
+		}
+	}
+
+	return false
+}
+
+func summarizeYtdlpFailure(runErr error, result *ytdlp.Result) string {
+	if result == nil {
+		return ""
+	}
+
+	stderrLine := lastNonEmptyLine(result.Stderr)
+	if stderrLine != "" {
+		return fmt.Sprintf("yt-dlp stderr: %s", stderrLine)
+	}
+
+	stdoutLine := lastNonEmptyLine(result.Stdout)
+	if stdoutLine != "" {
+		return fmt.Sprintf("yt-dlp output: %s", stdoutLine)
+	}
+
+	if runErr != nil {
+		return fmt.Sprintf("yt-dlp error: %v", runErr)
+	}
+
+	return ""
+}
+
+func lastNonEmptyLine(text string) string {
+	lines := strings.Split(text, "\n")
+	for i := len(lines) - 1; i >= 0; i-- {
+		line := strings.TrimSpace(lines[i])
+		if line != "" {
+			return line
+		}
+	}
+	return ""
 }
 
 func (t *Task) verifyFiles(logger *log.Logger, files []string) ([]string, error) {
