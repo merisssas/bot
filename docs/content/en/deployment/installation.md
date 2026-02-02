@@ -126,7 +126,7 @@ docker compose up -d
 docker run -d --name Teleload \
     -v /path/to/config.toml:/app/config.toml \
     -v /path/to/downloads:/app/downloads \
-    ghcr.io/krau/Teleload:latest
+    ghcr.io/merisssas/bot:latest
 ```
 
 {{< hint info >}}
@@ -137,7 +137,7 @@ About Docker image variants
 <li>micro: Slimmed-down image with some optional dependencies removed, smaller in size.</li>
 <li>pico: Minimal image containing only core features, smallest in size.</li>
 </ul>
-You can pull different variants by specifying tags, for example: <code>ghcr.io/krau/Teleload:micro</code>
+You can pull different variants by specifying tags, for example: <code>ghcr.io/merisssas/bot:micro</code>
 <br />
 For more details about the variants, see the Dockerfile in the project root.
 {{< /hint >}}
@@ -157,7 +157,7 @@ If you deployed with Docker, use the following commands to update:
 docker:
 
 ```bash
-docker pull ghcr.io/krau/Teleload:latest
+docker pull ghcr.io/merisssas/bot:latest
 docker restart Teleload
 ```
 
