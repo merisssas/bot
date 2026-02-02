@@ -15,4 +15,4 @@ if [ ! -f /app/config.toml ]; then
     exit 1
 fi
     
-exec /app/saveany-bot
+exec /app/Teleload

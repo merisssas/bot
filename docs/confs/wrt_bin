@@ -2,24 +2,24 @@
 
 case "$1" in
     start)
-        /etc/init.d/saveanybot start
+        /etc/init.d/Teleloadbot start
         ;;
     stop)
-        /etc/init.d/saveanybot stop
+        /etc/init.d/Teleloadbot stop
         ;;
     restart)
-        /etc/init.d/saveanybot restart
+        /etc/init.d/Teleloadbot restart
         ;;
     status)
-        /etc/init.d/saveanybot status
+        /etc/init.d/Teleloadbot status
         ;;
     enable)
-        /etc/init.d/saveanybot enable
-        echo "Enable SaveAnyBot auto-start."
+        /etc/init.d/Teleloadbot enable
+        echo "Enable Teleload auto-start."
         ;;
     disable)
-        /etc/init.d/saveanybot disable
-        echo "Disable SaveAnyBot auto-start."
+        /etc/init.d/Teleloadbot disable
+        echo "Disable Teleload auto-start."
         ;;
     *)
         echo "Usage: $0 {start|stop|restart|status|enable|disable}"

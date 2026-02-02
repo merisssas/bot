@@ -14,16 +14,16 @@ import (
 var VersionCmd = &cobra.Command{
 	Use:     "version",
 	Aliases: []string{"v"},
-	Short:   "Print the version number of saveany-bot",
+	Short:   "Print the version number of Teleload",
 	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Printf("saveany-bot version: %s %s/%s\nBuildTime: %s, Commit: %s\n", config.Version, runtime.GOOS, runtime.GOARCH, config.BuildTime, config.GitCommit)
+		fmt.Printf("Teleload version: %s %s/%s\nBuildTime: %s, Commit: %s\n", config.Version, runtime.GOOS, runtime.GOARCH, config.BuildTime, config.GitCommit)
 	},
 }
 
 var upgradeCmd = &cobra.Command{
 	Use:     "upgrade",
 	Aliases: []string{"up"},
-	Short:   "Upgrade saveany-bot to the latest version",
+	Short:   "Upgrade Teleload to the latest version",
 	Run: func(cmd *cobra.Command, args []string) {
 		v := semver.MustParse(config.Version)
 		latest, found, err := ghselfupdate.DetectLatest(config.GitRepo)

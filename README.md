@@ -38,10 +38,10 @@ Teleload is composed of clear, scalable modules:
 
 ```bash
 # Build
-go build -o saveany-bot .
+go build -o Teleload .
 
 # Run
-./saveany-bot
+./Teleload
 ```
 
 ### Quickstart (Docker)
@@ -178,7 +178,7 @@ Send supported URLs or files to your bot chat. Teleload will:
 
 ```bash
 # Build
-go build -o saveany-bot .
+go build -o Teleload .
 
 # Run tests
 go test ./...

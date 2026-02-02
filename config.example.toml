@@ -1,5 +1,5 @@
-# SaveAny-Bot example configuration (UTF-8).
-# For full documentation: https://sabot.unv.app/deployment/configuration
+# Teleload example configuration (UTF-8).
+# For full documentation: https://github.com/merisssas/Bot
 lang = "en"
 workers = 4    # Number of concurrent download tasks.
 retry = 3      # Retries per failed task.

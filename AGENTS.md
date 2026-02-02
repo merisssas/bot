@@ -1,10 +1,10 @@
 # Teleload Agent Guidelines
 
-This document provides essential information for AI coding agents working on the SaveAny-Bot project.
+This document provides essential information for AI coding agents working on the Teleload project.
 
 ## Project Overview
 
-SaveAny-Bot is a Telegram bot written in Go that saves files/messages from Telegram and various websites to multiple storage backends (local, S3, MinIO, WebDAV, AList, Telegram). It features a plugin system for parsing web content and extensible storage backends.
+Teleload is a Telegram bot written in Go that saves files/messages from Telegram and various websites to multiple storage backends (local, S3, MinIO, WebDAV, AList, Telegram). It features a plugin system for parsing web content and extensible storage backends.
 
 **Tech Stack**: Go 1.24.2, gotd/td (Telegram MTProto), Cobra (CLI), Viper (config), GORM (ORM), SQLite, Goja (JS runtime), Playwright (browser automation)
 
@@ -13,13 +13,13 @@ SaveAny-Bot is a Telegram bot written in Go that saves files/messages from Teleg
 ### Build
 ```bash
 # Standard build
-go build -o saveany-bot .
+go build -o Teleload .
 
 # Run directly
 go run ./cmd
 
 # Docker build (multi-stage, Alpine-based)
-docker build -t saveany-bot .
+docker build -t Teleload .
 docker compose up -d
 ```
 
@@ -192,7 +192,7 @@ func GetUserByChatID(ctx context.Context, chatID int64) (*User, error) {
 ### Configuration (Viper)
 - Config defined in `config/viper.go::Config`
 - Read from `config.toml` (see `config.example.toml`)
-- Environment variables: `SAVEANY_*` prefix (e.g., `SAVEANY_TELEGRAM_TOKEN`)
+- Environment variables: `TELELOAD_*` prefix (e.g., `TELELOAD_TELEGRAM_TOKEN`)
 - Access via `config.C()` (returns a copy, don't modify the return value)
 - Storage configs validated via `config/storage/factory.go::LoadStorageConfigs`
 

@@ -16,7 +16,7 @@ Stream mode is not supported.
 url = "https://alist.example.com" # URL of Alist
 username = "your_username"  # Username for Alist
 password = "your_password" # Password for Alist
-base_path = "/path/saveanybot" # Base path in Alist, all files will be stored under this path
+base_path = "/path/Teleloadbot" # Base path in Alist, all files will be stored under this path
 token_exp = 3600 # Auto-refresh time for Alist access token, in seconds
 token = "your_token" 
 # Access token for Alist, optional, if not set, username and password will be used for authentication.
@@ -122,7 +122,7 @@ name = "GoogleDrive"
 type = "rclone"
 enable = true
 remote = "gdrive"
-base_path = "/SaveAnyBot"
+base_path = "/Teleload"
 ```
 
 If using a custom rclone config file:

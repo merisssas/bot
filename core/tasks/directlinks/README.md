@@ -1,6 +1,6 @@
 # Directlinks Ultimate Downloader
 
-This folder contains the **Directlinks** task implementation — the HTTP/HTTPS downloader used by SaveAny-Bot for direct links. It is designed to deliver a “premium downloader” experience: resilient transfers, segmented downloads, resuming, strict validation, and UX-friendly progress reporting.
+This folder contains the **Directlinks** task implementation — the HTTP/HTTPS downloader used by Teleload for direct links. It is designed to deliver a “premium downloader” experience: resilient transfers, segmented downloads, resuming, strict validation, and UX-friendly progress reporting.
 
 ## Capabilities
 
@@ -63,7 +63,7 @@ default_priority = 0
 ### CLI flags
 
 ```bash
-saveany-bot \
+Teleload \
   --directlinks-max-concurrency=4 \
   --directlinks-segment-concurrency=16 \
   --directlinks-min-multipart-size=5MB \
@@ -90,12 +90,12 @@ saveany-bot \
 
 ### Environment variables
 
-All config keys map to `SAVEANY_*` environment variables. Example:
+All config keys map to `TELELOAD_*` environment variables. Example:
 
 ```bash
-export SAVEANY_DIRECTLINKS_MAX_CONCURRENCY=4
-export SAVEANY_DIRECTLINKS_LIMIT_RATE=10M
-export SAVEANY_DIRECTLINKS_DRY_RUN=true
+export TELELOAD_DIRECTLINKS_MAX_CONCURRENCY=4
+export TELELOAD_DIRECTLINKS_LIMIT_RATE=10M
+export TELELOAD_DIRECTLINKS_DRY_RUN=true
 ```
 
 ## Operational Notes

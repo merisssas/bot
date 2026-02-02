@@ -10,8 +10,8 @@ import (
 )
 
 var rootCmd = &cobra.Command{
-	Use:   "saveany-bot",
-	Short: "saveany-bot",
+	Use:   "Teleload",
+	Short: "Teleload",
 	Run:   Run,
 }
 

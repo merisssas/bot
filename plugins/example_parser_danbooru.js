@@ -1,4 +1,4 @@
-// Danbooru post parser for SaveAnyBot
+// Danbooru post parser for Teleload
 // request https://danbooru.donmai.us/posts/{id}.json and parse the response
 
 const metadata = {

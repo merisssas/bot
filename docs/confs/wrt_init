@@ -1,20 +1,20 @@
 #!/bin/sh /etc/rc.common
 
-# This is the OpenWRT init.d script for SaveAnyBot
+# This is the OpenWRT init.d script for Teleload
 
 START=99  # 设置启动顺序，数字越大越后启动
 STOP=10   # 设置停止顺序，数字越小越先停止
 
 # 脚本描述
-description="SaveAnyBot"
+description="Teleload"
 
 # 设置工作目录和执行文件路径
-WORKING_DIR="/mnt/mmc1-1/SaveAnyBot"
-EXEC_PATH="$WORKING_DIR/saveany-bot"
+WORKING_DIR="/mnt/mmc1-1/Teleload"
+EXEC_PATH="$WORKING_DIR/Teleload"
 
 # 启动函数
 start() {
-    echo "Starting SaveAnyBot..."
+    echo "Starting Teleload..."
     # 切换到工作目录并执行程序
     cd $WORKING_DIR
     $EXEC_PATH &
@@ -22,9 +22,9 @@ start() {
 
 # 停止函数
 stop() {
-    echo "Stopping SaveAnyBot..."
+    echo "Stopping Teleload..."
     # 查找并杀死进程
-    killall saveany-bot
+    killall Teleload
 }
 
 # 重启函数

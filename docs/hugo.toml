@@ -1,5 +1,5 @@
-baseURL = 'https://sabot.unv.app/'
-title = 'Save Any Bot'
+baseURL = 'https://github.com/merisssas/Bot'
+title = 'Teleload'
 disablePathToLower = true
 enableGitInfo = true
 defaultContentLanguage = 'en'
@@ -14,7 +14,7 @@ BookTheme = 'auto'
 BookToC = true
 BookLogo = 'logo.png'
 BookSection = '*'
-BookRepo = 'https://github.com/krau/saveany-bot'
+BookRepo = 'https://github.com/krau/Teleload'
 BookCommitPath = 'commit'
 BookEditPath = 'edit/main/docs'
 BookDateFormat = '2006/01/02'

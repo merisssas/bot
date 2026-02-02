@@ -4,9 +4,9 @@ title: "Configuration Guide"
 
 # Configuration Guide
 
-SaveAnyBot uses the toml format for its configuration files. You can learn more about toml syntax on the [TOML official website](https://toml.io/).
+Teleload uses the toml format for its configuration files. You can learn more about toml syntax on the [TOML official website](https://toml.io/).
 
-SaveAnyBot needs to read a `config.toml` file in the working directory as its configuration file. If this file is missing, a default file will be created, and the bot will attempt to load configuration from environment variables.
+Teleload needs to read a `config.toml` file in the working directory as its configuration file. If this file is missing, a default file will be created, and the bot will attempt to load configuration from environment variables.
 
 Here is an example of a minimal configuration file:
 

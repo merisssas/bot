@@ -1,7 +1,7 @@
 services:
-  saveany-bot:
+  Teleload:
     image: ghcr.io/merisssas/bot:latest
-    container_name: saveany-bot
+    container_name: Teleload
     restart: unless-stopped
     volumes:
       - ./data:/app/data

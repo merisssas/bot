@@ -2,14 +2,14 @@
 title: Introduction
 ---
 
-# Save Any Bot
+# Teleload
 
 ![](https://img.shields.io/github/go-mod/go-version/merisssas/Bot?style=flat-square)
 ![](https://img.shields.io/github/license/merisssas/Bot?style=flat-square)
 ![](https://img.shields.io/github/v/release/merisssas/Bot?color=cyan&style=flat-square)
 ![](https://img.shields.io/github/downloads/merisssas/Bot/total?style=flat-square)
 
-Save Any Bot is a tool that allows you to save files from Telegram to various storage backends.
+Teleload is a tool that allows you to save files from Telegram to various storage backends.
 
 ## 🎯 Features
 

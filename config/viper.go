@@ -135,7 +135,7 @@ func (c Config) GetStorageByName(name string) storage.StorageConfig {
 
 func Init(ctx context.Context, configFile ...string) error {
 	viper.SetConfigType("toml")
-	viper.SetEnvPrefix("SAVEANY")
+	viper.SetEnvPrefix("TELELOAD")
 	viper.AutomaticEnv()
 	replacer := strings.NewReplacer(".", "_")
 	viper.SetEnvKeyReplacer(replacer)
@@ -163,7 +163,7 @@ func Init(ctx context.Context, configFile ...string) error {
 	} else {
 		viper.SetConfigName("config")
 		viper.AddConfigPath(".")
-		viper.AddConfigPath("/etc/saveany/")
+		viper.AddConfigPath("/etc/Teleload/")
 	}
 
 	defaultConfigs := map[string]any{
@@ -189,7 +189,7 @@ func Init(ctx context.Context, configFile ...string) error {
 		"temp.base_path": "cache/",
 
 		// Database
-		"db.path":    "data/saveany.db",
+		"db.path":    "data/Teleload.db",
 		"db.session": "data/session.db",
 
 		// yt-dlp defaults

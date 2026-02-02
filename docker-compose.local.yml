@@ -1,5 +1,5 @@
 services:
-  saveany-bot:
+  Teleload:
     build: .
     container_name: teleload
     restart: unless-stopped

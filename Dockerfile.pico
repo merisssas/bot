@@ -1,4 +1,4 @@
-# pico is the minimum build of SaveAnyBot, which disables all the optional features like JS parsing and MinIO support.
+# pico is the minimum build of Teleload, which disables all the optional features like JS parsing and MinIO support.
 FROM golang:alpine AS builder
 
 ARG VERSION="dev"
@@ -24,12 +24,12 @@ RUN --mount=type=cache,target=/root/.cache/go-build \
     -X 'github.com/merisssas/Bot/config.BuildTime=${BuildTime}' \
     -X 'github.com/merisssas/Bot/config.Docker=true' \
     " \
-    -o saveany-bot . && chmod +x saveany-bot
+    -o Teleload . && chmod +x Teleload
 
 FROM scratch
 
 WORKDIR /app
 
-COPY --from=builder /app/saveany-bot .
+COPY --from=builder /app/Teleload .
 
-ENTRYPOINT ["/app/saveany-bot"]
+ENTRYPOINT ["/app/Teleload"]

@@ -22,7 +22,7 @@ RUN --mount=type=cache,target=/root/.cache/go-build \
     -X 'github.com/merisssas/Bot/config.BuildTime=${BuildTime}' \
     -X 'github.com/merisssas/Bot/config.Docker=true' \
     " \
-    -o saveany-bot .
+    -o Teleload .
 
 FROM alpine:latest
 
@@ -30,10 +30,10 @@ RUN apk add --no-cache curl ffmpeg yt-dlp
 
 WORKDIR /app
 
-COPY --from=builder /app/saveany-bot .
+COPY --from=builder /app/Teleload .
 COPY entrypoint.sh .
 
-RUN chmod +x /app/saveany-bot && \
+RUN chmod +x /app/Teleload && \
     chmod +x /app/entrypoint.sh
 
 ENTRYPOINT ["/app/entrypoint.sh"]

@@ -3,7 +3,7 @@
 
 /**
  * Plugin metadata.
- * The version is the plugin spec version supported by saveany-bot and is required.
+ * The version is the plugin spec version supported by Teleload and is required.
  */
 const metadata = {
     name: "Example Parser", // Plugin name

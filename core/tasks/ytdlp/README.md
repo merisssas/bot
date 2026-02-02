@@ -36,9 +36,9 @@ Custom yt-dlp flags:
 /ytdlp --extract-audio --audio-format mp3 https://example.com/video
 ```
 
-## Control Flags (SaveAny)
+## Control Flags (Teleload)
 
-Control flags diawali dengan `--sa-` (atau `--saveany-`) dan **tidak** diteruskan ke yt-dlp.
+Control flags diawali dengan `--sa-` (atau `--Teleload-`) dan **tidak** diteruskan ke yt-dlp.
 
 | Flag | Contoh | Deskripsi |
 | --- | --- | --- |
@@ -83,11 +83,11 @@ log_level = "info"
 user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) UltimateDownloader/2.0"
 ```
 
-Semua opsi di atas bisa di-override via environment variable `SAVEANY_YTDLP_*`, contoh:
+Semua opsi di atas bisa di-override via environment variable `TELELOAD_YTDLP_*`, contoh:
 
 ```
-SAVEANY_YTDLP_DOWNLOAD_CONCURRENCY=3
-SAVEANY_YTDLP_FRAGMENT_CONCURRENCY=32
+TELELOAD_YTDLP_DOWNLOAD_CONCURRENCY=3
+TELELOAD_YTDLP_FRAGMENT_CONCURRENCY=32
 ```
 
 ## Troubleshooting

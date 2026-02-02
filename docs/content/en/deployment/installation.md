@@ -13,8 +13,8 @@ Create a `config.toml` file in the extracted directory, refer to the [Configurat
 Run:
 
 ```bash
-chmod +x saveany-bot
-./saveany-bot
+chmod +x Teleload
+./Teleload
 ```
 
 ### Daemon
@@ -22,17 +22,17 @@ chmod +x saveany-bot
 {{< tabs "daemon" >}}
 {{< tab "systemd (Regular Linux)" >}}
 
-Create a file <code>/etc/systemd/system/saveany-bot.service</code> and write the following content:
+Create a file <code>/etc/systemd/system/Teleload.service</code> and write the following content:
 
 {{< codeblock >}}
 [Unit]
-Description=SaveAnyBot
+Description=Teleload
 After=systemd-user-sessions.service
 
 [Service]
 Type=simple
 WorkingDirectory=/yourpath/
-ExecStart=/yourpath/saveany-bot
+ExecStart=/yourpath/Teleload
 Restart=always
 
 [Install]
@@ -42,7 +42,7 @@ WantedBy=multi-user.target
 Enable startup on boot and start the service:
 
 {{< codeblock >}}
-systemctl enable --now saveany-bot
+systemctl enable --now Teleload
 {{< /codeblock >}}
 
 {{< /tab >}}
@@ -51,27 +51,27 @@ systemctl enable --now saveany-bot
 
 <h4>Add Boot Autostart Service</h4>
 
-Create a file <code>/etc/init.d/saveanybot</code>, refer to <a href="https://github.com/merisssas/Bot/blob/main/docs/confs/wrt_init" target="_blank">wrt_init</a> and modify as needed:
+Create a file <code>/etc/init.d/Teleloadbot</code>, refer to <a href="https://github.com/merisssas/Bot/blob/main/docs/confs/wrt_init" target="_blank">wrt_init</a> and modify as needed:
 
 {{< codeblock >}}
 #!/bin/sh /etc/rc.common
 
-#This is the OpenWRT init.d script for SaveAnyBot
+#This is the OpenWRT init.d script for Teleload
 
 START=99 
 STOP=10
-description="SaveAnyBot"
+description="Teleload"
 
-WORKING_DIR="/mnt/mmc1-1/SaveAnyBot"
-EXEC_PATH="$WORKING_DIR/saveany-bot"
+WORKING_DIR="/mnt/mmc1-1/Teleload"
+EXEC_PATH="$WORKING_DIR/Teleload"
 start() {
-    echo "Starting SaveAnyBot..."
+    echo "Starting Teleload..."
     cd $WORKING_DIR
     $EXEC_PATH &
 }
 stop() {
-    echo "Stopping SaveAnyBot..."
-    killall saveany-bot
+    echo "Stopping Teleload..."
+    killall Teleload
 }
 reload() {
     stop
@@ -83,13 +83,13 @@ reload() {
 Set permissions:
 
 {{< codeblock >}}
-chmod +x /etc/init.d/saveanybot
+chmod +x /etc/init.d/Teleloadbot
 {{< /codeblock >}}
 
-Then copy the file to <code>/etc/rc.d</code> and rename it to <code>S99saveanybot</code>, also set permissions:
+Then copy the file to <code>/etc/rc.d</code> and rename it to <code>S99Teleloadbot</code>, also set permissions:
 
 {{< codeblock >}}
-chmod +x /etc/rc.d/S99saveanybot
+chmod +x /etc/rc.d/S99Teleloadbot
 {{< /codeblock >}}
 
 <h4>Add Shortcut Commands</h4>
@@ -123,10 +123,10 @@ docker compose up -d
 ### Docker
 
 ```shell
-docker run -d --name saveany-bot \
+docker run -d --name Teleload \
     -v /path/to/config.toml:/app/config.toml \
     -v /path/to/downloads:/app/downloads \
-    ghcr.io/krau/saveany-bot:latest
+    ghcr.io/krau/Teleload:latest
 ```
 
 {{< hint info >}}
@@ -137,7 +137,7 @@ About Docker image variants
 <li>micro: Slimmed-down image with some optional dependencies removed, smaller in size.</li>
 <li>pico: Minimal image containing only core features, smallest in size.</li>
 </ul>
-You can pull different variants by specifying tags, for example: <code>ghcr.io/krau/saveany-bot:micro</code>
+You can pull different variants by specifying tags, for example: <code>ghcr.io/krau/Teleload:micro</code>
 <br />
 For more details about the variants, see the Dockerfile in the project root.
 {{< /hint >}}
@@ -147,7 +147,7 @@ For more details about the variants, see the Dockerfile in the project root.
 If you deployed from pre-compiled binaries, use the following CLI command to update:
 
 ```bash
-./saveany-bot up
+./Teleload up
 ```
 
 (`upgrade` is also available as an alias.)
@@ -157,8 +157,8 @@ If you deployed with Docker, use the following commands to update:
 docker:
 
 ```bash
-docker pull ghcr.io/krau/saveany-bot:latest
-docker restart saveany-bot
+docker pull ghcr.io/krau/Teleload:latest
+docker restart Teleload
 ```
 
 docker compose:

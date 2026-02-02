@@ -26,7 +26,7 @@ func applyControlFlags(cfg TaskConfig, flags []string) (TaskConfig, []string, er
 		}
 
 		switch key {
-		case "sa-dry-run", "saveany-dry-run":
+		case "sa-dry-run", "Teleload-dry-run":
 			if value == "" || strings.EqualFold(value, "true") {
 				cfg.DryRun = true
 			} else if strings.EqualFold(value, "false") {
@@ -34,13 +34,13 @@ func applyControlFlags(cfg TaskConfig, flags []string) (TaskConfig, []string, er
 			} else {
 				return cfg, nil, fmt.Errorf("invalid dry-run value: %s", value)
 			}
-		case "sa-overwrite", "saveany-overwrite":
+		case "sa-overwrite", "Teleload-overwrite":
 			cfg.OverwritePolicy = parseOverwritePolicy(value)
-		case "sa-checksum", "saveany-checksum":
+		case "sa-checksum", "Teleload-checksum":
 			algo, expected := splitChecksum(value)
 			cfg.ChecksumAlgorithm = algo
 			cfg.ExpectedChecksum = expected
-		case "sa-checksum-file", "saveany-checksum-file":
+		case "sa-checksum-file", "Teleload-checksum-file":
 			if value == "" || strings.EqualFold(value, "true") {
 				cfg.WriteChecksumFile = true
 			} else if strings.EqualFold(value, "false") {
@@ -48,31 +48,31 @@ func applyControlFlags(cfg TaskConfig, flags []string) (TaskConfig, []string, er
 			} else {
 				return cfg, nil, fmt.Errorf("invalid checksum-file value: %s", value)
 			}
-		case "sa-proxy", "saveany-proxy":
+		case "sa-proxy", "Teleload-proxy":
 			cfg.Proxy = value
-		case "sa-limit", "saveany-limit":
+		case "sa-limit", "Teleload-limit":
 			cfg.LimitRate = value
-		case "sa-burst", "saveany-burst":
+		case "sa-burst", "Teleload-burst":
 			cfg.ThrottledRate = value
-		case "sa-conn", "saveany-conn":
+		case "sa-conn", "Teleload-conn":
 			parsed, err := strconv.Atoi(value)
 			if err != nil {
 				return cfg, nil, fmt.Errorf("invalid download concurrency: %w", err)
 			}
 			cfg.DownloadConcurrency = parsed
-		case "sa-fragments", "saveany-fragments":
+		case "sa-fragments", "Teleload-fragments":
 			parsed, err := strconv.Atoi(value)
 			if err != nil {
 				return cfg, nil, fmt.Errorf("invalid fragment concurrency: %w", err)
 			}
 			cfg.FragmentConcurrency = parsed
-		case "sa-retries", "saveany-retries":
+		case "sa-retries", "Teleload-retries":
 			parsed, err := strconv.Atoi(value)
 			if err != nil {
 				return cfg, nil, fmt.Errorf("invalid retry count: %w", err)
 			}
 			cfg.MaxRetries = parsed
-		case "sa-priority", "saveany-priority":
+		case "sa-priority", "Teleload-priority":
 			parsed, err := strconv.Atoi(value)
 			if err != nil {
 				return cfg, nil, fmt.Errorf("invalid priority: %w", err)
@@ -87,7 +87,7 @@ func applyControlFlags(cfg TaskConfig, flags []string) (TaskConfig, []string, er
 }
 
 func isControlFlag(flag string) bool {
-	return strings.HasPrefix(flag, "--sa-") || strings.HasPrefix(flag, "--saveany-")
+	return strings.HasPrefix(flag, "--sa-") || strings.HasPrefix(flag, "--Teleload-")
 }
 
 func parseFlagValue(flag string, flags []string, idx int) (string, string, bool) {

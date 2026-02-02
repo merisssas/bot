@@ -20,7 +20,7 @@ parser:
 bot:
   msg:
     help_text_fmt: |
-      Save Any Bot - Save your Telegram files
+      Teleload - Save your Telegram files
       Version: %s , Commit: %s
 
       Commands:
@@ -42,7 +42,7 @@ bot:
       /syncpeers - Sync peer chats (UserBot)
       /update - Check and upgrade to latest version
 
-      Usage guide: https://sabot.unv.app/usage
+      Usage guide: https://github.com/merisssas/Bot
     cmd:
       start: "Start using"
       silent: "Toggle silent mode"

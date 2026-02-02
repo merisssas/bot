@@ -5,7 +5,7 @@ weight: 10
 
 # Usage
 
-This page introduces some of Save Any Bot's features and basic usage. If you can't find what you need here, please also see the [Configuration Guide](../deployment/configuration) or ask in GitHub [Discussions](https://github.com/merisssas/Bot/discussions).
+This page introduces some of Teleload's features and basic usage. If you can't find what you need here, please also see the [Configuration Guide](../deployment/configuration) or ask in GitHub [Discussions](https://github.com/merisssas/Bot/discussions).
 
 ## File Transfer
 
