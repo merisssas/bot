@@ -7,6 +7,7 @@ import (
 	"text/template"
 	"time"
 
+	"github.com/celestix/gotgproto/ext"
 	"github.com/charmbracelet/log"
 	"github.com/gotd/td/tg"
 	"github.com/merisssas/Bot/common/utils/strutil"
@@ -14,7 +15,6 @@ import (
 	"github.com/merisssas/Bot/database"
 	"github.com/merisssas/Bot/pkg/enums/fnamest"
 	"github.com/merisssas/Bot/pkg/tfile"
-	"github.com/merisssas/gotgproto/ext"
 )
 
 func IsSupported(media tg.MessageMediaClass) bool {
