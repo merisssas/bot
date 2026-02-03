@@ -275,10 +275,6 @@ func (t *Task) analyzeFileFallback(ctx context.Context, file *File, totalBytes *
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode == http.StatusForbidden {
-		return t.analyzeFileNoRange(ctx, file, totalBytes)
-	}
-
 	switch resp.StatusCode {
 	case http.StatusPartialContent:
 		file.IsResumable = true
@@ -293,37 +289,6 @@ func (t *Task) analyzeFileFallback(ctx context.Context, file *File, totalBytes *
 		}
 	default:
 		return wrapError(ErrKindHTTP, "range GET returned non-success", fmt.Errorf("range GET %s returned status %d", file.URL, resp.StatusCode))
-	}
-
-	file.ContentType = resp.Header.Get("Content-Type")
-	file.Name = ParseFilename(resp.Header.Get("Content-Disposition"), file.URL, file.ContentType)
-	if file.Name == "" {
-		return wrapError(ErrKindValidation, "failed to determine filename", fmt.Errorf("could not determine filename for %s", file.URL))
-	}
-
-	return nil
-}
-
-func (t *Task) analyzeFileNoRange(ctx context.Context, file *File, totalBytes *atomic.Int64) error {
-	req, err := t.newRequest(ctx, http.MethodGet, file.URL, nil)
-	if err != nil {
-		return wrapError(ErrKindValidation, "failed to create GET request", err)
-	}
-
-	resp, err := t.client.Do(req)
-	if err != nil {
-		return wrapError(ErrKindNetwork, "failed to GET", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return wrapError(ErrKindHTTP, "GET returned non-success", fmt.Errorf("GET %s returned status %d", file.URL, resp.StatusCode))
-	}
-
-	file.IsResumable = false
-	if resp.ContentLength > 0 {
-		file.Size = resp.ContentLength
-		totalBytes.Add(resp.ContentLength)
 	}
 
 	file.ContentType = resp.Header.Get("Content-Type")
@@ -534,8 +499,7 @@ func (t *Task) processLinkSingle(ctx context.Context, file *File) error {
 		if err != nil {
 			return wrapError(ErrKindValidation, "failed to create GET request", err)
 		}
-		rangeRequested := t.enableResume && file.IsResumable && existingSize > 0
-		if rangeRequested {
+		if t.enableResume && file.IsResumable && existingSize > 0 {
 			req.Header.Set("Range", fmt.Sprintf("bytes=%d-", existingSize))
 		}
 
@@ -544,44 +508,6 @@ func (t *Task) processLinkSingle(ctx context.Context, file *File) error {
 			return wrapError(ErrKindNetwork, "failed to GET", err)
 		}
 		defer resp.Body.Close()
-
-		if rangeRequested && resp.StatusCode == http.StatusForbidden {
-			logger.Warnf("Range GET forbidden for %s, restarting without resume", file.Name)
-			file.IsResumable = false
-			existingSize = 0
-			if cacheFile != nil {
-				if truncateErr := cacheFile.Truncate(0); truncateErr != nil {
-					return wrapError(ErrKindFilesystem, "failed to reset cache file", truncateErr)
-				}
-				if _, seekErr := cacheFile.Seek(0, 0); seekErr != nil {
-					return wrapError(ErrKindFilesystem, "failed to rewind cache file", seekErr)
-				}
-			}
-			resp.Body.Close()
-			req, err = t.newRequest(ctx, http.MethodGet, file.URL, nil)
-			if err != nil {
-				return wrapError(ErrKindValidation, "failed to create GET request", err)
-			}
-			resp, err = t.client.Do(req)
-			if err != nil {
-				return wrapError(ErrKindNetwork, "failed to GET", err)
-			}
-			defer resp.Body.Close()
-		}
-
-		if rangeRequested && resp.StatusCode == http.StatusOK {
-			logger.Warnf("Server ignored range request for %s, restarting without resume", file.Name)
-			file.IsResumable = false
-			existingSize = 0
-			if cacheFile != nil {
-				if truncateErr := cacheFile.Truncate(0); truncateErr != nil {
-					return wrapError(ErrKindFilesystem, "failed to reset cache file", truncateErr)
-				}
-				if _, seekErr := cacheFile.Seek(0, 0); seekErr != nil {
-					return wrapError(ErrKindFilesystem, "failed to rewind cache file", seekErr)
-				}
-			}
-		}
 
 		if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 			return wrapError(ErrKindHTTP, "GET returned non-success", fmt.Errorf("GET %s returned status %d", file.URL, resp.StatusCode))

@@ -168,20 +168,6 @@ auth_password = ""
 # Queue priority (higher runs first when multiple links are queued).
 default_priority = 0
 
-# Telegram file downloader (tfile) configuration
-[tfile]
-# Retry policy with exponential backoff.
-max_retries = 3
-retry_base_delay = "500ms"
-retry_max_delay = "10s"
-retry_jitter = 0.25
-# overwrite | rename | skip
-overwrite_policy = "rename"
-# Dry-run mode to validate metadata without downloading files.
-dry_run = false
-# Verify file hashes when Telegram provides them.
-verify_hashes = true
-
 # Storage list
 [[storages]]
 # Unique storage name

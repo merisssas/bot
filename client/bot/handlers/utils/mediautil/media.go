@@ -7,7 +7,6 @@ import (
 	"text/template"
 	"time"
 
-	"github.com/celestix/gotgproto/ext"
 	"github.com/charmbracelet/log"
 	"github.com/gotd/td/tg"
 	"github.com/merisssas/Bot/common/utils/strutil"
@@ -48,7 +47,7 @@ func (f FilenameTemplateData) ToMap() map[string]string {
 	}
 }
 
-func TfileOptions(ctx *ext.Context, user *database.User, message *tg.Message) []tfile.TGFileOption {
+func TfileOptions(ctx context.Context, user *database.User, message *tg.Message) []tfile.TGFileOption {
 	opts := make([]tfile.TGFileOption, 0)
 	var fnameOpt tfile.TGFileOption
 	switch user.FilenameStrategy {
@@ -78,35 +77,8 @@ func TfileOptions(ctx *ext.Context, user *database.User, message *tg.Message) []
 	default:
 		fnameOpt = tfile.WithNameIfEmpty(tgutil.GenFileNameFromMessage(*message))
 	}
-	opts = append(opts, fnameOpt, tfile.WithMessage(message), RefresherOption(ctx, message))
+	opts = append(opts, fnameOpt, tfile.WithMessage(message))
 	return opts
-}
-
-func RefresherOption(ctx *ext.Context, message *tg.Message) tfile.TGFileOption {
-	return tfile.WithRefresher(func(refreshCtx context.Context) (tg.InputFileLocationClass, int64, string, error) {
-		if refreshCtx != nil {
-			if err := refreshCtx.Err(); err != nil {
-				return nil, 0, "", err
-			}
-		}
-		chatID := tgutil.ChatIdFromPeer(message.GetPeerID())
-		if chatID == 0 {
-			return nil, 0, "", fmt.Errorf("missing chat ID for message %d", message.GetID())
-		}
-		freshMsg, err := tgutil.GetMessageByID(ctx, chatID, message.GetID())
-		if err != nil {
-			return nil, 0, "", err
-		}
-		media, ok := freshMsg.GetMedia()
-		if !ok || media == nil {
-			return nil, 0, "", fmt.Errorf("message %d has no media", freshMsg.GetID())
-		}
-		freshFile, err := tfile.FromMediaMessage(media, ctx.Raw, freshMsg, tfile.WithNameIfEmpty(tgutil.GenFileNameFromMessage(*freshMsg)))
-		if err != nil {
-			return nil, 0, "", err
-		}
-		return freshFile.Location(), freshFile.Size(), freshFile.Name(), nil
-	})
 }
 
 func BuildFilenameTemplateData(message *tg.Message) map[string]string {

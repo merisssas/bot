@@ -1,7 +1,5 @@
 package tfile
 
-import "strings"
-
 var progressUpdatesLevels = []struct {
 	size        int64 // File size threshold.
 	stepPercent int   // Update every N percent.
@@ -31,12 +29,4 @@ func shouldUpdateProgress(total, downloaded int64, lastUpdatePercent int) bool {
 	}
 
 	return percent >= lastUpdatePercent+step
-}
-
-func isLocationNotFound(err error) bool {
-	if err == nil {
-		return false
-	}
-	msg := strings.ToUpper(err.Error())
-	return strings.Contains(msg, "VOLUME_LOC_NOT_FOUND") || strings.Contains(msg, "FILE_REFERENCE_EXPIRED")
 }

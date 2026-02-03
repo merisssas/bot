@@ -1,10 +1,6 @@
 package tfile
 
-import (
-	"context"
-
-	"github.com/gotd/td/tg"
-)
+import "github.com/gotd/td/tg"
 
 type TGFileOption func(*tgFile)
 
@@ -39,11 +35,5 @@ func WithSizeIfZero(size int64) TGFileOption {
 		if f.size == 0 {
 			f.size = size
 		}
-	}
-}
-
-func WithRefresher(refresher func(context.Context) (tg.InputFileLocationClass, int64, string, error)) TGFileOption {
-	return func(f *tgFile) {
-		f.refresh = refresher
 	}
 }

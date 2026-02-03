@@ -229,15 +229,6 @@ func (t *Task) downloadSingle(ctx context.Context, logger *log.Logger, taskDir s
 }
 
 func (t *Task) transferFile(ctx context.Context, logger *log.Logger, filePath string) error {
-	transcodedPath, cleanup, err := t.transcodeIfNeeded(ctx, logger, filePath)
-	if err != nil {
-		return newTaskError(ErrorCodeTransferFailed, "transcode", err)
-	}
-	if cleanup != nil {
-		defer cleanup()
-	}
-	filePath = transcodedPath
-
 	f, err := os.Open(filePath)
 	if err != nil {
 		return newTaskError(ErrorCodeTransferFailed, "open artifact", err)

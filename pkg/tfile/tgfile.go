@@ -1,7 +1,6 @@
 package tfile
 
 import (
-	"context"
 	"errors"
 	"fmt"
 
@@ -23,19 +22,12 @@ type TGFileMessage interface {
 	Message() *tg.Message
 }
 
-type Refreshable interface {
-	Refresh(ctx context.Context) error
-}
-
-type refreshFunc func(context.Context) (tg.InputFileLocationClass, int64, string, error)
-
 type tgFile struct {
 	location tg.InputFileLocationClass
 	size     int64
 	name     string
 	message  *tg.Message
 	dler     downloader.Client
-	refresh  refreshFunc
 }
 
 func (f *tgFile) SetName(name string) {
@@ -60,26 +52,6 @@ func (f *tgFile) Message() *tg.Message {
 
 func (f *tgFile) Dler() downloader.Client {
 	return f.dler
-}
-
-func (f *tgFile) Refresh(ctx context.Context) error {
-	if f.refresh == nil {
-		return errors.New("file refresh is not configured")
-	}
-	location, size, name, err := f.refresh(ctx)
-	if err != nil {
-		return err
-	}
-	if location != nil {
-		f.location = location
-	}
-	if size > 0 {
-		f.size = size
-	}
-	if name != "" {
-		f.name = name
-	}
-	return nil
 }
 
 func NewTGFile(

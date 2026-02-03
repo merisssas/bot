@@ -54,14 +54,14 @@ func formatByteSize(value int64) string {
 	}
 	const unit = 1024
 	if value < unit {
-		return strconv.FormatInt(value, 10)
+		return strconv.FormatInt(value, 10) + "B"
 	}
 	div, exp := int64(unit), 0
 	for n := value / unit; n >= unit; n /= unit {
 		div *= unit
 		exp++
 	}
-	return strconv.FormatFloat(float64(value)/float64(div), 'f', 0, 64) + string("KMGTPE"[exp])
+	return strconv.FormatFloat(float64(value)/float64(div), 'f', 0, 64) + string("KMGTPE"[exp]) + "B"
 }
 
 func hostFromURL(raw string) string {

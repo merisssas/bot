@@ -118,10 +118,6 @@ func handleBatchSave(ctx *ext.Context, update *ext.Update, args []string) error 
 		ctx.Reply(update, ext.ReplyTextString(i18n.T(i18nk.BotMsgCommonErrorInvalidIdOrUsername, map[string]any{"Error": err.Error()})), nil)
 		return dispatcher.EndGroups
 	}
-	userDB, err := database.GetUserByChatID(ctx, update.GetUserChat().GetID())
-	if err != nil {
-		return err
-	}
 
 	replied, err := ctx.Reply(update, ext.ReplyTextString(i18n.T(i18nk.BotMsgCommonInfoFetchingMessages)), nil)
 	if err != nil {
@@ -153,8 +149,7 @@ func handleBatchSave(ctx *ext.Context, update *ext.Update, args []string) error 
 		if !supported {
 			continue
 		}
-		opts := mediautil.TfileOptions(tctx, userDB, msg)
-		file, err := tfile.FromMediaMessage(media, tctx.Raw, msg, opts...)
+		file, err := tfile.FromMediaMessage(media, tctx.Raw, msg, tfile.WithNameIfEmpty(tgutil.GenFileNameFromMessage(*msg)))
 		if err != nil {
 			log.FromContext(ctx).Errorf("Failed to get file from message: %s", err)
 			continue
