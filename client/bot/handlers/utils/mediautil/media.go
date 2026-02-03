@@ -92,8 +92,8 @@ func TfileOptions(ctx *ext.Context, user *database.User, message *tg.Message) []
 		if err != nil {
 			return nil, 0, "", err
 		}
-		media := freshMsg.GetMedia()
-		if media == nil {
+		media, ok := freshMsg.GetMedia()
+		if !ok || media == nil {
 			return nil, 0, "", fmt.Errorf("message %d has no media", freshMsg.GetID())
 		}
 		freshFile, err := tfile.FromMediaMessage(media, ctx.Raw, freshMsg, tfile.WithNameIfEmpty(tgutil.GenFileNameFromMessage(*freshMsg)))
