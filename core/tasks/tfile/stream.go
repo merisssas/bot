@@ -30,13 +30,7 @@ func executeStream(ctx context.Context, task *Task) error {
 		}
 		return err
 	})
-	var err error
-	defer func() {
-		if task.Progress != nil {
-			task.Progress.OnDone(ctx, task, err)
-		}
-	}()
-	if err = errg.Wait(); err != nil {
+	if err := errg.Wait(); err != nil {
 		return err
 	}
 	logger.Info("File downloaded successfully in stream mode")

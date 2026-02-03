@@ -10,5 +10,7 @@ import (
 
 func NewDownloader(file tfile.TGFile) *downloader.Builder {
 	return downloader.NewDownloader().WithPartSize(tglimit.MaxPartSize).
-		Download(file.Dler(), file.Location()).WithThreads(dlutil.BestThreads(file.Size(), config.C().Threads))
+		Download(file.Dler(), file.Location()).
+		WithThreads(dlutil.BestThreads(file.Size(), config.C().Threads)).
+		WithVerify(config.C().TFile.VerifyHashes)
 }

@@ -26,6 +26,7 @@ type Config struct {
 	Aria2        aria2Config       `toml:"aria2" mapstructure:"aria2" json:"aria2"`
 	Ytdlp        ytdlpConfig       `toml:"ytdlp" mapstructure:"ytdlp" json:"ytdlp"`
 	Directlinks  directlinksConfig `toml:"directlinks" mapstructure:"directlinks" json:"directlinks"`
+	TFile        tfileConfig       `toml:"tfile" mapstructure:"tfile" json:"tfile"`
 
 	Cache    cacheConfig             `toml:"cache" mapstructure:"cache" json:"cache"`
 	Users    []userConfig            `toml:"users" mapstructure:"users" json:"users"`
@@ -139,6 +140,16 @@ type directlinksConfig struct {
 	AuthUsername       string        `toml:"auth_username" mapstructure:"auth_username" json:"auth_username"`
 	AuthPassword       string        `toml:"auth_password" mapstructure:"auth_password" json:"auth_password"`
 	DefaultPriority    int           `toml:"default_priority" mapstructure:"default_priority" json:"default_priority"`
+}
+
+type tfileConfig struct {
+	MaxRetries      int           `toml:"max_retries" mapstructure:"max_retries" json:"max_retries"`
+	RetryBaseDelay  time.Duration `toml:"retry_base_delay" mapstructure:"retry_base_delay" json:"retry_base_delay"`
+	RetryMaxDelay   time.Duration `toml:"retry_max_delay" mapstructure:"retry_max_delay" json:"retry_max_delay"`
+	RetryJitter     float64       `toml:"retry_jitter" mapstructure:"retry_jitter" json:"retry_jitter"`
+	DryRun          bool          `toml:"dry_run" mapstructure:"dry_run" json:"dry_run"`
+	OverwritePolicy string        `toml:"overwrite_policy" mapstructure:"overwrite_policy" json:"overwrite_policy"`
+	VerifyHashes    bool          `toml:"verify_hashes" mapstructure:"verify_hashes" json:"verify_hashes"`
 }
 
 var cfg = &Config{}
@@ -277,6 +288,15 @@ func Init(ctx context.Context, configFile ...string) error {
 		"directlinks.auth_username":       "",
 		"directlinks.auth_password":       "",
 		"directlinks.default_priority":    0,
+
+		// tfile (Telegram file) defaults
+		"tfile.max_retries":      3,
+		"tfile.retry_base_delay": "500ms",
+		"tfile.retry_max_delay":  "10s",
+		"tfile.retry_jitter":     0.25,
+		"tfile.dry_run":          false,
+		"tfile.overwrite_policy": "rename",
+		"tfile.verify_hashes":    true,
 	}
 
 	for key, value := range defaultConfigs {
@@ -321,6 +341,18 @@ func Init(ctx context.Context, configFile ...string) error {
 	}
 	if cfg.Retry < 1 {
 		cfg.Retry = 1
+	}
+	if cfg.TFile.MaxRetries < 1 {
+		cfg.TFile.MaxRetries = cfg.Retry
+	}
+	if cfg.TFile.RetryBaseDelay <= 0 {
+		cfg.TFile.RetryBaseDelay = 500 * time.Millisecond
+	}
+	if cfg.TFile.RetryMaxDelay <= 0 {
+		cfg.TFile.RetryMaxDelay = 10 * time.Second
+	}
+	if cfg.TFile.RetryJitter < 0 {
+		cfg.TFile.RetryJitter = 0
 	}
 
 	for _, storage := range cfg.Storages {
