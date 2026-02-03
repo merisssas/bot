@@ -37,19 +37,23 @@ func (t *Task) Execute(ctx context.Context) error {
 		t.Progress.OnStart(ctx, t)
 	}
 
+	t.initResilience()
+
 	basePath := config.C().Temp.BasePath
 	if err := os.MkdirAll(basePath, 0755); err != nil {
 		return t.handleError(ctx, logger, newTaskError(ErrorCodeWorkspace, "create base path", err))
 	}
 
-	taskDir, err := os.MkdirTemp(basePath, "ytdlp-task-*")
+	taskDir, cleanup, err := t.resolveTaskDir(basePath)
 	if err != nil {
 		return t.handleError(ctx, logger, newTaskError(ErrorCodeWorkspace, "create task workspace", err))
 	}
-	defer func() {
-		logger.Debugf("🧹 Cleaning workspace: %s", taskDir)
-		_ = os.RemoveAll(taskDir)
-	}()
+	if cleanup {
+		defer func() {
+			logger.Debugf("🧹 Cleaning workspace: %s", taskDir)
+			_ = os.RemoveAll(taskDir)
+		}()
+	}
 
 	if t.Config.DryRun {
 		if err := t.runDryRun(ctx, logger); err != nil {
@@ -67,6 +71,11 @@ func (t *Task) Execute(ctx context.Context) error {
 		return t.handleError(ctx, logger, err)
 	}
 
+	downloadedFiles, err = t.filterDuplicates(logger, downloadedFiles)
+	if err != nil {
+		return t.handleError(ctx, logger, err)
+	}
+
 	if len(downloadedFiles) == 0 {
 		return t.handleError(ctx, logger, newTaskError(ErrorCodeDownloadFailed, "validate download", errors.New("no files produced")))
 	}
@@ -74,7 +83,7 @@ func (t *Task) Execute(ctx context.Context) error {
 	logger.Infof("📦 Transferring %d artifact(s) to %s", len(downloadedFiles), t.Storage.Name())
 
 	for _, filePath := range downloadedFiles {
-		err = t.retry(ctx, logger, "Transfer Phase", func() error {
+		err = t.retry(ctx, logger, "Transfer Phase", func(_ int) error {
 			return t.transferFile(ctx, logger, filePath)
 		})
 		if err != nil {
@@ -144,24 +153,10 @@ func (t *Task) downloadQueue(ctx context.Context, logger *log.Logger, taskDir st
 				continue
 			}
 
-			downloadFn := func() ([]string, error) {
-				subDir, err := os.MkdirTemp(taskDir, fmt.Sprintf("url-%d-*", item.index+1))
-				if err != nil {
-					return nil, newTaskError(ErrorCodeWorkspace, "create url workspace", err)
-				}
-
-				files, err := t.downloadSingle(ctx, logger, subDir, item.url, item.index)
-				if err != nil {
-					_ = os.RemoveAll(subDir)
-					return nil, err
-				}
-				return files, nil
-			}
-
 			var files []string
-			err := t.retry(ctx, logger, fmt.Sprintf("Download %d/%d", item.index+1, len(items)), func() error {
+			err := t.retry(ctx, logger, fmt.Sprintf("Download %d/%d", item.index+1, len(items)), func(attempt int) error {
 				var dErr error
-				files, dErr = downloadFn()
+				files, dErr = t.downloadSingle(ctx, logger, taskDir, item, attempt)
 				return dErr
 			})
 
@@ -203,132 +198,39 @@ func (t *Task) downloadQueue(ctx context.Context, logger *log.Logger, taskDir st
 	return files, nil
 }
 
-func (t *Task) downloadSingle(ctx context.Context, logger *log.Logger, tempDir, url string, index int) ([]string, error) {
-	outputTemplate := filepath.Join(tempDir, "%(title).80s-%(id)s.%(ext)s")
-
-	cmd := t.buildCommand().
-		Output(outputTemplate).
-		RestrictFilenames().
-		EmbedMetadata().
-		EmbedThumbnail().
-		ResizeBuffer().
-		HLSUseMPEGTS()
-
-	if t.Config.FormatSort != "" {
-		cmd.FormatSort(t.Config.FormatSort)
-	}
-	if t.Config.RecodeVideo != "" {
-		cmd.RecodeVideo(t.Config.RecodeVideo)
-	}
-	if t.Config.MergeOutputFormat != "" {
-		cmd.MergeOutputFormat(t.Config.MergeOutputFormat)
-	}
-
-	if t.Config.EnableResume {
-		cmd.Continue()
-	}
-
-	switch t.Config.OverwritePolicy {
-	case OverwritePolicyOverwrite:
-		cmd.ForceOverwrites()
-	case OverwritePolicySkip:
-		cmd.NoOverwrites()
-	default:
-		cmd.NoOverwrites()
-	}
-
-	if t.Config.FragmentConcurrency > 0 {
-		cmd.ConcurrentFragments(t.Config.FragmentConcurrency)
-	}
-
-	cmd.FragmentRetries("infinite").
-		Retries("infinite").
-		FileAccessRetries("infinite")
-
-	if t.Config.Proxy != "" {
-		cmd.Proxy(t.Config.Proxy)
-	}
-	if t.Config.LimitRate != "" {
-		cmd.LimitRate(t.Config.LimitRate)
-	}
-	if t.Config.ThrottledRate != "" {
-		cmd.ThrottledRate(t.Config.ThrottledRate)
-	}
-	if t.Config.ExternalDownloader != "" {
-		cmd.Downloader(t.Config.ExternalDownloader)
-		for _, arg := range t.Config.ExternalDownloaderArg {
-			cmd.DownloaderArgs(arg)
-		}
-	}
-	if t.Config.UserAgent != "" {
-		cmd.UserAgent(t.Config.UserAgent)
-	}
-
-	if t.Progress != nil {
-		cmd.ProgressFunc(250*time.Millisecond, func(prog ytdlp.ProgressUpdate) {
-			percent := prog.Percent()
-			if percent == 0 && prog.TotalBytes > 0 && prog.DownloadedBytes > 0 {
-				percent = (float64(prog.DownloadedBytes) / float64(prog.TotalBytes)) * 100
-			}
-
-			speed := calcSpeed(prog.DownloadedBytes, prog.Duration())
-			eta := prog.ETA()
-			status := fmt.Sprintf("%s", prog.Status)
-
-			t.updateStats(url, percent, status)
-
-			totalPercent := t.totalPercent(percent)
-			t.Progress.OnProgress(ctx, t, ProgressUpdate{
-				Status:        status,
-				FilePercent:   percent,
-				TotalPercent:  totalPercent,
-				Speed:         speed,
-				ETA:           eta,
-				Filename:      prog.Filename,
-				ItemIndex:     index + 1,
-				ItemTotal:     len(t.URLs),
-				FragmentIndex: prog.FragmentIndex,
-				FragmentCount: prog.FragmentCount,
-			})
-		})
-	}
-
-	logger.Infof("⬇️ Downloading %s", url)
-
-	args := append(t.Flags, url)
-	runResult, runErr := cmd.Run(ctx, args...)
-	if runErr != nil {
-		if errors.Is(runErr, context.Canceled) {
-			return nil, newTaskError(ErrorCodeCanceled, "download", runErr)
-		}
-		logger.Warnf("yt-dlp exited with warning/error: %v (validating files)", runErr)
-	}
-
-	files, err := collectValidFiles(logger, tempDir)
-	if err != nil {
-		return nil, newTaskError(ErrorCodeDownloadFailed, "scan files", err)
-	}
-	if len(files) == 0 {
-		if hasUnmergedStreams(tempDir) {
-			return nil, newTaskError(
-				ErrorCodeDownloadFailed,
-				"merge streams",
-				errors.New("yt-dlp produced separate video/audio streams; ffmpeg is required to merge them"),
-			)
-		}
-		if detail := summarizeYtdlpFailure(runErr, runResult); detail != "" {
-			return nil, newTaskError(ErrorCodeDownloadFailed, "validate files", fmt.Errorf("no valid file produced; %s", detail))
-		}
-		return nil, newTaskError(ErrorCodeDownloadFailed, "validate files", errors.New("no valid file produced"))
-	}
-
-	validated, err := t.verifyFiles(logger, files)
+func (t *Task) downloadSingle(ctx context.Context, logger *log.Logger, taskDir string, item queueItem, attempt int) ([]string, error) {
+	subDir, cleanup, err := t.prepareURLDir(taskDir, item.index)
 	if err != nil {
 		return nil, err
 	}
+	if cleanup {
+		defer func() {
+			_ = os.RemoveAll(subDir)
+		}()
+	}
 
-	t.markComplete(url)
-	return validated, nil
+	host := hostFromURL(item.url)
+	if err := t.waitForRateLimit(ctx, host); err != nil {
+		return nil, err
+	}
+
+	var lastErr error
+	for _, plan := range t.buildAttemptPlans(item.url, attempt) {
+		files, err := t.runDownloadAttempt(ctx, logger, subDir, item, plan)
+		if err == nil {
+			return files, nil
+		}
+		lastErr = err
+		if !errors.Is(err, errFormatUnavailable) {
+			return nil, err
+		}
+		logger.Warnf("Format unavailable for %s, trying fallback format", item.url)
+	}
+
+	if lastErr != nil {
+		return nil, lastErr
+	}
+	return nil, newTaskError(ErrorCodeDownloadFailed, "download", errors.New("no valid file produced"))
 }
 
 func (t *Task) transferFile(ctx context.Context, logger *log.Logger, filePath string) error {
@@ -374,20 +276,33 @@ func (t *Task) transferFile(ctx context.Context, logger *log.Logger, filePath st
 	return nil
 }
 
-func (t *Task) retry(ctx context.Context, logger *log.Logger, operation string, fn func() error) error {
+func (t *Task) retry(ctx context.Context, logger *log.Logger, operation string, fn func(attempt int) error) error {
 	var err error
 	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
-	maxRetries := t.Config.MaxRetries
-	for i := 0; i <= maxRetries; i++ {
+	policy := RetryPolicy{
+		MaxAttempts:            t.Config.MaxRetries,
+		BaseDelay:              t.Config.RetryBaseDelay,
+		MaxDelay:               t.Config.RetryMaxDelay,
+		JitterFactor:           t.Config.RetryJitter,
+		RateLimitMultiplier:    3,
+		ServerErrorMultiplier:  2,
+		NetworkErrorMultiplier: 2,
+	}
+
+	for attempt := 0; attempt <= t.Config.MaxRetries; attempt++ {
 		if ctx.Err() != nil {
 			return newTaskError(ErrorCodeCanceled, operation, ctx.Err())
 		}
 
-		if i > 0 {
-			backoff := time.Duration(math.Pow(2, float64(i))) * t.Config.RetryBaseDelay
-			jitter := time.Duration(rng.Float64() * t.Config.RetryJitter * float64(backoff))
-			wait := backoff + jitter
-			logger.Warnf("⚠️ %s failed. Retrying in %s (Attempt %d/%d)... Error: %v", operation, wait, i, maxRetries, err)
+		if attempt > 0 {
+			retryClass := classifyRetryError(err)
+			delay, ok := policy.NextDelay(attempt, retryClass)
+			if !ok {
+				break
+			}
+			jitter := time.Duration(rng.Float64() * policy.JitterFactor * float64(delay))
+			wait := delay + jitter
+			logger.Warnf("⚠️ %s failed. Retrying in %s (Attempt %d/%d)... Error: %v", operation, wait, attempt, t.Config.MaxRetries, err)
 
 			select {
 			case <-time.After(wait):
@@ -396,7 +311,7 @@ func (t *Task) retry(ctx context.Context, logger *log.Logger, operation string, 
 			}
 		}
 
-		err = fn()
+		err = fn(attempt)
 		if err == nil {
 			return nil
 		}

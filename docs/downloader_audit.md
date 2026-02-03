@@ -111,3 +111,35 @@ Full repo scan performed via `rg --files` to enumerate every tracked file and id
 ### Unused function/module decisions
 - **KEEP**: validation + dry-run helpers (directly used by aria2 download entrypoint).
 - **KEEP**: priority helper (`ApplyQueuePriority`) for queue ordering.
+
+## 9) YT-DLP Resilience Roadmap (2026-02-04)
+
+This section captures hardening recommendations for yt-dlp-backed flows so they can remain competitive against IDM/JDownloader-style reliability while still fitting Teleload’s architecture.
+
+### High-impact reliability goals
+- **Retry engine with exponential backoff + jitter** for transient HTTP errors and rate limits.
+- **Persistent progress state** (per format + fragment) to survive bot restarts and crashes.
+- **Adaptive rate limiting** per host/IP/ASN to reduce bans and throttling.
+- **Proxy pool with health scoring** (latency, success rate, bandwidth) for aggressive block environments.
+- **Fragment retry/repair** for DASH/HLS segments to prevent corrupt merges.
+
+### Priority implementation order
+| #  | Feature | Impact | Difficulty | Notes |
+|---:|---------|:------:|:----------:|-------|
+| 1 | Retry with exponential backoff + jitter | 10 | Medium | Required for Cloudflare/Akamai resiliency |
+| 2 | Persistent state for format + fragment | 10 | High | Enables resume after restart |
+| 3 | HTTP/3 + dual-stack + happy eyeballs | 9 | Medium | Significant stability gains on poor ISPs |
+| 4 | Proxy rotator + scoring | 9 | High | IP-blocked sites become feasible |
+| 5 | Fragment-level retry + repair | 8 | High | Stabilizes DASH/HLS downloads |
+| 6 | Adaptive bandwidth throttling | 8 | Med-High | Avoids packet loss/disconnects |
+| 7 | Multi-connection per file | 7–9 | Very High | Requires custom downloader |
+| 8 | Deduplication (content + name) | 7 | Medium | Use xxh3/128 or blake3 |
+| 9 | Smart format sorting | 7 | Medium | Better defaults for users |
+|10 | Anti-ban fingerprint randomization | 6–8 | High | UA/TLS/HTTP2/QUIC tuning |
+|11 | Parallel extraction + queue prioritization | 6 | Medium | Helps large playlists |
+|12 | Auto-retry with format fallback | 6 | Medium | 1080p → 720p fallback |
+
+### Guiding strategy
+- Treat yt-dlp primarily as **extractor + format selector**.
+- For IDM-level behavior, invest in a **custom segmented downloader** with range-based resume/repair.
+- When staying within yt-dlp, focus on **state persistence + proxy health + intelligent retry** first.

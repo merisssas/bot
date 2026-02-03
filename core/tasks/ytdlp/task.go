@@ -3,6 +3,7 @@ package ytdlp
 import (
 	"context"
 	"fmt"
+	"math/rand"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -51,6 +52,13 @@ type Task struct {
 	pauseCh chan struct{}
 
 	logFile *os.File
+
+	stateManager   *stateManager
+	rateLimiter    *hostLimiter
+	proxyPool      *proxyPool
+	deduper        *deduper
+	rateController *adaptiveRateController
+	uaRand         *rand.Rand
 }
 
 // NewTask creates a robust, sanitized, and validation-checked Task instance.

@@ -20,21 +20,39 @@ const (
 
 type TaskConfig struct {
 	MaxRetries          int
+	RetryBaseDelay      time.Duration
+	RetryMaxDelay       time.Duration
+	RetryJitter         float64
 	DownloadConcurrency int
 	FragmentConcurrency int
 	EnableResume        bool
 	Proxy               string
+	ProxyPool           []string
 
 	ExternalDownloader    string
 	ExternalDownloaderArg []string
 
 	LimitRate     string
 	ThrottledRate string
+	AdaptiveLimit bool
+	AdaptiveMin   string
+	AdaptiveMax   string
 
 	OverwritePolicy   OverwritePolicy
 	FormatSort        string
+	FormatFallbacks   []string
 	RecodeVideo       string
 	MergeOutputFormat string
+	EnableRepair      bool
+	RepairPasses      int
+	DedupEnabled      bool
+	PersistState      bool
+	StateDir          string
+	CleanupState      bool
+	RateLimitMinDelay time.Duration
+	RateLimitMaxDelay time.Duration
+	RateLimitJitter   float64
+	FingerprintRandom bool
 	DryRun            bool
 	ChecksumAlgorithm string
 	ExpectedChecksum  string
@@ -43,11 +61,10 @@ type TaskConfig struct {
 	LogFile  string
 	LogLevel log.Level
 
-	UserAgent string
-
-	RetryBaseDelay time.Duration
-	RetryJitter    float64
-	Priority       int
+	UserAgent     string
+	UserAgentPool []string
+	HappyEyeballs bool
+	Priority      int
 }
 
 type Option func(*Task)
@@ -131,18 +148,36 @@ func defaultTaskConfig() TaskConfig {
 
 	return TaskConfig{
 		MaxRetries:            cfg.Ytdlp.MaxRetries,
+		RetryBaseDelay:        cfg.Ytdlp.RetryBaseDelay,
+		RetryMaxDelay:         cfg.Ytdlp.RetryMaxDelay,
+		RetryJitter:           cfg.Ytdlp.RetryJitter,
 		DownloadConcurrency:   cfg.Ytdlp.DownloadConcurrency,
 		FragmentConcurrency:   cfg.Ytdlp.FragmentConcurrency,
 		EnableResume:          cfg.Ytdlp.EnableResume,
 		Proxy:                 firstNonEmpty(cfg.Ytdlp.Proxy, cfg.Proxy),
+		ProxyPool:             cfg.Ytdlp.ProxyPool,
 		ExternalDownloader:    cfg.Ytdlp.ExternalDownloader,
 		ExternalDownloaderArg: cfg.Ytdlp.ExternalDownloaderArg,
 		LimitRate:             cfg.Ytdlp.LimitRate,
 		ThrottledRate:         cfg.Ytdlp.ThrottledRate,
+		AdaptiveLimit:         cfg.Ytdlp.AdaptiveLimit,
+		AdaptiveMin:           cfg.Ytdlp.AdaptiveLimitMinRate,
+		AdaptiveMax:           cfg.Ytdlp.AdaptiveLimitMaxRate,
 		OverwritePolicy:       parseOverwritePolicy(cfg.Ytdlp.OverwritePolicy),
 		FormatSort:            cfg.Ytdlp.FormatSort,
+		FormatFallbacks:       cfg.Ytdlp.FormatFallbacks,
 		RecodeVideo:           cfg.Ytdlp.RecodeVideo,
 		MergeOutputFormat:     cfg.Ytdlp.MergeOutputFormat,
+		EnableRepair:          cfg.Ytdlp.EnableFragmentRepair,
+		RepairPasses:          cfg.Ytdlp.FragmentRepairPasses,
+		DedupEnabled:          cfg.Ytdlp.DedupEnabled,
+		PersistState:          cfg.Ytdlp.PersistState,
+		StateDir:              cfg.Ytdlp.StateDir,
+		CleanupState:          cfg.Ytdlp.CleanupStateOnSuccess,
+		RateLimitMinDelay:     cfg.Ytdlp.RateLimitMinInterval,
+		RateLimitMaxDelay:     cfg.Ytdlp.RateLimitMaxInterval,
+		RateLimitJitter:       cfg.Ytdlp.RateLimitJitter,
+		FingerprintRandom:     cfg.Ytdlp.FingerprintRandomize,
 		DryRun:                cfg.Ytdlp.DryRun,
 		ChecksumAlgorithm:     cfg.Ytdlp.ChecksumAlgorithm,
 		ExpectedChecksum:      cfg.Ytdlp.ExpectedChecksum,
@@ -150,8 +185,8 @@ func defaultTaskConfig() TaskConfig {
 		LogFile:               cfg.Ytdlp.LogFile,
 		LogLevel:              parseLogLevel(cfg.Ytdlp.LogLevel),
 		UserAgent:             cfg.Ytdlp.UserAgent,
-		RetryBaseDelay:        2 * time.Second,
-		RetryJitter:           0.25,
+		UserAgentPool:         cfg.Ytdlp.UserAgentPool,
+		HappyEyeballs:         cfg.Ytdlp.HappyEyeballs,
 		Priority:              1,
 	}
 }
@@ -192,6 +227,18 @@ func validateConfig(cfg TaskConfig) error {
 	}
 	if cfg.RetryJitter < 0 || cfg.RetryJitter > 1 {
 		return fmt.Errorf("retry jitter must be between 0 and 1")
+	}
+	if cfg.RetryBaseDelay < 0 {
+		return fmt.Errorf("retry base delay must be >= 0")
+	}
+	if cfg.RetryMaxDelay < 0 {
+		return fmt.Errorf("retry max delay must be >= 0")
+	}
+	if cfg.RateLimitJitter < 0 || cfg.RateLimitJitter > 1 {
+		return fmt.Errorf("rate limit jitter must be between 0 and 1")
+	}
+	if cfg.RepairPasses < 0 {
+		return fmt.Errorf("fragment repair passes must be >= 0")
 	}
 	return nil
 }

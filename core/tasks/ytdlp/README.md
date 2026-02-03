@@ -7,14 +7,19 @@ Task ini menjalankan yt-dlp dengan fokus pada **reliabilitas**, **performa**, da
 - **Resume download** (HTTP range) via `--continue`.
 - **Multi-connection/segmented download** untuk HLS/DASH (concurrent fragments) dan opsional external downloader (`aria2c`).
 - **Retry** dengan exponential backoff + jitter.
+- **State persistence** (progress + workspace) untuk resume setelah restart.
 - **Verifikasi integritas** (checksum opsional) + file checksum sidecar.
 - **Bandwidth limit + burst mode** (limit & throttled rate).
+- **Adaptive rate limit** per-host + throttling berbasis feedback.
 - **Queue + concurrency per task** (parallel per URL).
 - **Overwrite policy**: overwrite / auto-rename / skip.
-- **Proxy & auth** via yt-dlp `--proxy`.
+- **Proxy pool** dengan health scoring + auto-rotate.
 - **Logging** konsisten (console + file) + level.
 - **Dry-run** untuk validasi metadata tanpa download.
 - **Progress bar** per-file + total.
+- **Format fallback** jika format utama gagal.
+- **Fingerprint randomization** (User-Agent + headers).
+- **Deduplication** konten sebelum upload.
 
 ## Cara Pakai (Bot)
 
@@ -68,18 +73,42 @@ Contoh:
 ```
 [ytdlp]
 max_retries = 5
+retry_base_delay = "2s"
+retry_max_delay = "30s"
+retry_jitter = 0.25
 download_concurrency = 2
 fragment_concurrency = 16
 enable_resume = true
 proxy = ""
+proxy_pool = []
 external_downloader = ""
 external_downloader_args = []
 limit_rate = ""
 throttled_rate = ""
+adaptive_limit = true
+adaptive_limit_min_rate = "512K"
+adaptive_limit_max_rate = "0"
 overwrite_policy = "rename" # overwrite | rename | skip
 format_sort = "res:1080,vcodec:h264,acodec:aac"
+format_fallbacks = ["bestvideo+bestaudio/best", "best"]
 recode_video = "mp4"
 merge_output_format = "mp4"
+enable_fragment_repair = true
+fragment_repair_passes = 2
+dedup_enabled = true
+persist_state = true
+state_dir = "data/ytdlp_state"
+cleanup_state_on_success = true
+rate_limit_min_interval = "0ms"
+rate_limit_max_interval = "5s"
+rate_limit_jitter = 0.2
+fingerprint_randomize = true
+user_agent_pool = [
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+  "Mozilla/5.0 (Macintosh; Intel Mac OS X 13_5) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.2 Safari/605.1.15",
+  "Mozilla/5.0 (X11; Linux x86_64) Gecko/20100101 Firefox/122.0",
+]
+happy_eyeballs = true
 dry_run = false
 checksum_algorithm = ""
 expected_checksum = ""

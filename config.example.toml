@@ -63,6 +63,10 @@ default_priority = 0
 [ytdlp]
 # Maximum retry attempts per URL download.
 max_retries = 5
+# Base and max retry delay with jitter factor.
+retry_base_delay = "2s"
+retry_max_delay = "30s"
+retry_jitter = 0.25
 # Number of URLs to download in parallel (queue workers).
 download_concurrency = 2
 # Concurrent fragment downloads for HLS/DASH.
@@ -71,20 +75,50 @@ fragment_concurrency = 16
 enable_resume = true
 # Optional proxy for yt-dlp only (overrides global proxy).
 proxy = ""
+# Optional proxy pool with health scoring (higher success preferred).
+proxy_pool = []
 # External downloader (e.g. "aria2c") and extra args for segmented downloads.
 external_downloader = ""
 external_downloader_args = []
 # Bandwidth limit and throttled rate (e.g. "10M", "500K").
 limit_rate = ""
 throttled_rate = ""
+# Adaptive bandwidth throttling based on retry feedback.
+adaptive_limit = true
+adaptive_limit_min_rate = "512K"
+adaptive_limit_max_rate = "0"
 # overwrite | rename | skip
 overwrite_policy = "rename"
 # Format sorting preferences for yt-dlp (comma-separated).
 format_sort = "res:1080,vcodec:h264,acodec:aac"
+# Format fallback list when the preferred format is unavailable.
+format_fallbacks = ["bestvideo+bestaudio/best", "best"]
 # Optional recode target (empty disables recode).
 recode_video = "mp4"
 # Optional merge output format (empty disables merge override).
 merge_output_format = "mp4"
+# Enable fragment repair passes for DASH/HLS partials.
+enable_fragment_repair = true
+fragment_repair_passes = 2
+# Enable deduplication using content hashes before upload.
+dedup_enabled = true
+# Persist download state for resumability across restarts.
+persist_state = true
+state_dir = "data/ytdlp_state"
+cleanup_state_on_success = true
+# Adaptive rate limiting per host.
+rate_limit_min_interval = "0ms"
+rate_limit_max_interval = "5s"
+rate_limit_jitter = 0.2
+# Fingerprint randomization (User-Agent + headers).
+fingerprint_randomize = true
+user_agent_pool = [
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+  "Mozilla/5.0 (Macintosh; Intel Mac OS X 13_5) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.2 Safari/605.1.15",
+  "Mozilla/5.0 (X11; Linux x86_64) Gecko/20100101 Firefox/122.0",
+]
+# Happy eyeballs toggles IPv4/IPv6 fallback on retries.
+happy_eyeballs = true
 # Dry-run mode to validate metadata without downloading files.
 dry_run = false
 # Checksum verification (optional).

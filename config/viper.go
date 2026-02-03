@@ -74,26 +74,46 @@ func (c aria2Config) RemoveAfterTransferEnabled() bool {
 }
 
 type ytdlpConfig struct {
-	MaxRetries            int      `toml:"max_retries" mapstructure:"max_retries" json:"max_retries"`
-	DownloadConcurrency   int      `toml:"download_concurrency" mapstructure:"download_concurrency" json:"download_concurrency"`
-	FragmentConcurrency   int      `toml:"fragment_concurrency" mapstructure:"fragment_concurrency" json:"fragment_concurrency"`
-	EnableResume          bool     `toml:"enable_resume" mapstructure:"enable_resume" json:"enable_resume"`
-	Proxy                 string   `toml:"proxy" mapstructure:"proxy" json:"proxy"`
-	ExternalDownloader    string   `toml:"external_downloader" mapstructure:"external_downloader" json:"external_downloader"`
-	ExternalDownloaderArg []string `toml:"external_downloader_args" mapstructure:"external_downloader_args" json:"external_downloader_args"`
-	LimitRate             string   `toml:"limit_rate" mapstructure:"limit_rate" json:"limit_rate"`
-	ThrottledRate         string   `toml:"throttled_rate" mapstructure:"throttled_rate" json:"throttled_rate"`
-	OverwritePolicy       string   `toml:"overwrite_policy" mapstructure:"overwrite_policy" json:"overwrite_policy"`
-	FormatSort            string   `toml:"format_sort" mapstructure:"format_sort" json:"format_sort"`
-	RecodeVideo           string   `toml:"recode_video" mapstructure:"recode_video" json:"recode_video"`
-	MergeOutputFormat     string   `toml:"merge_output_format" mapstructure:"merge_output_format" json:"merge_output_format"`
-	DryRun                bool     `toml:"dry_run" mapstructure:"dry_run" json:"dry_run"`
-	ChecksumAlgorithm     string   `toml:"checksum_algorithm" mapstructure:"checksum_algorithm" json:"checksum_algorithm"`
-	ExpectedChecksum      string   `toml:"expected_checksum" mapstructure:"expected_checksum" json:"expected_checksum"`
-	WriteChecksumFile     bool     `toml:"write_checksum_file" mapstructure:"write_checksum_file" json:"write_checksum_file"`
-	LogFile               string   `toml:"log_file" mapstructure:"log_file" json:"log_file"`
-	LogLevel              string   `toml:"log_level" mapstructure:"log_level" json:"log_level"`
-	UserAgent             string   `toml:"user_agent" mapstructure:"user_agent" json:"user_agent"`
+	MaxRetries            int           `toml:"max_retries" mapstructure:"max_retries" json:"max_retries"`
+	RetryBaseDelay        time.Duration `toml:"retry_base_delay" mapstructure:"retry_base_delay" json:"retry_base_delay"`
+	RetryMaxDelay         time.Duration `toml:"retry_max_delay" mapstructure:"retry_max_delay" json:"retry_max_delay"`
+	RetryJitter           float64       `toml:"retry_jitter" mapstructure:"retry_jitter" json:"retry_jitter"`
+	DownloadConcurrency   int           `toml:"download_concurrency" mapstructure:"download_concurrency" json:"download_concurrency"`
+	FragmentConcurrency   int           `toml:"fragment_concurrency" mapstructure:"fragment_concurrency" json:"fragment_concurrency"`
+	EnableResume          bool          `toml:"enable_resume" mapstructure:"enable_resume" json:"enable_resume"`
+	Proxy                 string        `toml:"proxy" mapstructure:"proxy" json:"proxy"`
+	ProxyPool             []string      `toml:"proxy_pool" mapstructure:"proxy_pool" json:"proxy_pool"`
+	ExternalDownloader    string        `toml:"external_downloader" mapstructure:"external_downloader" json:"external_downloader"`
+	ExternalDownloaderArg []string      `toml:"external_downloader_args" mapstructure:"external_downloader_args" json:"external_downloader_args"`
+	LimitRate             string        `toml:"limit_rate" mapstructure:"limit_rate" json:"limit_rate"`
+	ThrottledRate         string        `toml:"throttled_rate" mapstructure:"throttled_rate" json:"throttled_rate"`
+	AdaptiveLimit         bool          `toml:"adaptive_limit" mapstructure:"adaptive_limit" json:"adaptive_limit"`
+	AdaptiveLimitMinRate  string        `toml:"adaptive_limit_min_rate" mapstructure:"adaptive_limit_min_rate" json:"adaptive_limit_min_rate"`
+	AdaptiveLimitMaxRate  string        `toml:"adaptive_limit_max_rate" mapstructure:"adaptive_limit_max_rate" json:"adaptive_limit_max_rate"`
+	OverwritePolicy       string        `toml:"overwrite_policy" mapstructure:"overwrite_policy" json:"overwrite_policy"`
+	FormatSort            string        `toml:"format_sort" mapstructure:"format_sort" json:"format_sort"`
+	FormatFallbacks       []string      `toml:"format_fallbacks" mapstructure:"format_fallbacks" json:"format_fallbacks"`
+	RecodeVideo           string        `toml:"recode_video" mapstructure:"recode_video" json:"recode_video"`
+	MergeOutputFormat     string        `toml:"merge_output_format" mapstructure:"merge_output_format" json:"merge_output_format"`
+	EnableFragmentRepair  bool          `toml:"enable_fragment_repair" mapstructure:"enable_fragment_repair" json:"enable_fragment_repair"`
+	FragmentRepairPasses  int           `toml:"fragment_repair_passes" mapstructure:"fragment_repair_passes" json:"fragment_repair_passes"`
+	DedupEnabled          bool          `toml:"dedup_enabled" mapstructure:"dedup_enabled" json:"dedup_enabled"`
+	PersistState          bool          `toml:"persist_state" mapstructure:"persist_state" json:"persist_state"`
+	StateDir              string        `toml:"state_dir" mapstructure:"state_dir" json:"state_dir"`
+	CleanupStateOnSuccess bool          `toml:"cleanup_state_on_success" mapstructure:"cleanup_state_on_success" json:"cleanup_state_on_success"`
+	RateLimitMinInterval  time.Duration `toml:"rate_limit_min_interval" mapstructure:"rate_limit_min_interval" json:"rate_limit_min_interval"`
+	RateLimitMaxInterval  time.Duration `toml:"rate_limit_max_interval" mapstructure:"rate_limit_max_interval" json:"rate_limit_max_interval"`
+	RateLimitJitter       float64       `toml:"rate_limit_jitter" mapstructure:"rate_limit_jitter" json:"rate_limit_jitter"`
+	FingerprintRandomize  bool          `toml:"fingerprint_randomize" mapstructure:"fingerprint_randomize" json:"fingerprint_randomize"`
+	UserAgent             string        `toml:"user_agent" mapstructure:"user_agent" json:"user_agent"`
+	UserAgentPool         []string      `toml:"user_agent_pool" mapstructure:"user_agent_pool" json:"user_agent_pool"`
+	HappyEyeballs         bool          `toml:"happy_eyeballs" mapstructure:"happy_eyeballs" json:"happy_eyeballs"`
+	DryRun                bool          `toml:"dry_run" mapstructure:"dry_run" json:"dry_run"`
+	ChecksumAlgorithm     string        `toml:"checksum_algorithm" mapstructure:"checksum_algorithm" json:"checksum_algorithm"`
+	ExpectedChecksum      string        `toml:"expected_checksum" mapstructure:"expected_checksum" json:"expected_checksum"`
+	WriteChecksumFile     bool          `toml:"write_checksum_file" mapstructure:"write_checksum_file" json:"write_checksum_file"`
+	LogFile               string        `toml:"log_file" mapstructure:"log_file" json:"log_file"`
+	LogLevel              string        `toml:"log_level" mapstructure:"log_level" json:"log_level"`
 }
 
 type directlinksConfig struct {
@@ -196,17 +216,43 @@ func Init(ctx context.Context, configFile ...string) error {
 		"db.session": "data/session.db",
 
 		// yt-dlp defaults
-		"ytdlp.max_retries":          5,
-		"ytdlp.download_concurrency": 2,
-		"ytdlp.fragment_concurrency": 16,
-		"ytdlp.enable_resume":        true,
-		"ytdlp.overwrite_policy":     "rename",
-		"ytdlp.format_sort":          "res:1080,vcodec:h264,acodec:aac",
-		"ytdlp.recode_video":         "mp4",
-		"ytdlp.merge_output_format":  "mp4",
-		"ytdlp.dry_run":              false,
-		"ytdlp.log_level":            "info",
-		"ytdlp.user_agent":           "Mozilla/5.0 (Windows NT 10.0; Win64; x64) UltimateDownloader/2.0",
+		"ytdlp.max_retries":              5,
+		"ytdlp.retry_base_delay":         "2s",
+		"ytdlp.retry_max_delay":          "30s",
+		"ytdlp.retry_jitter":             0.25,
+		"ytdlp.download_concurrency":     2,
+		"ytdlp.fragment_concurrency":     16,
+		"ytdlp.enable_resume":            true,
+		"ytdlp.proxy_pool":               []string{},
+		"ytdlp.limit_rate":               "",
+		"ytdlp.throttled_rate":           "",
+		"ytdlp.adaptive_limit":           true,
+		"ytdlp.adaptive_limit_min_rate":  "512K",
+		"ytdlp.adaptive_limit_max_rate":  "0",
+		"ytdlp.overwrite_policy":         "rename",
+		"ytdlp.format_sort":              "res:1080,vcodec:h264,acodec:aac",
+		"ytdlp.format_fallbacks":         []string{"bestvideo+bestaudio/best", "best"},
+		"ytdlp.recode_video":             "mp4",
+		"ytdlp.merge_output_format":      "mp4",
+		"ytdlp.enable_fragment_repair":   true,
+		"ytdlp.fragment_repair_passes":   2,
+		"ytdlp.dedup_enabled":            true,
+		"ytdlp.persist_state":            true,
+		"ytdlp.state_dir":                "data/ytdlp_state",
+		"ytdlp.cleanup_state_on_success": true,
+		"ytdlp.rate_limit_min_interval":  "0ms",
+		"ytdlp.rate_limit_max_interval":  "5s",
+		"ytdlp.rate_limit_jitter":        0.2,
+		"ytdlp.fingerprint_randomize":    true,
+		"ytdlp.user_agent_pool": []string{
+			"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+			"Mozilla/5.0 (Macintosh; Intel Mac OS X 13_5) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.2 Safari/605.1.15",
+			"Mozilla/5.0 (X11; Linux x86_64) Gecko/20100101 Firefox/122.0",
+		},
+		"ytdlp.happy_eyeballs": true,
+		"ytdlp.dry_run":        false,
+		"ytdlp.log_level":      "info",
+		"ytdlp.user_agent":     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) UltimateDownloader/2.0",
 
 		// Directlinks defaults
 		"directlinks.max_concurrency":     4,
