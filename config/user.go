@@ -10,12 +10,8 @@ type userConfig struct {
 	Blacklist bool     `toml:"blacklist" mapstructure:"blacklist" json:"blacklist"` // Blacklist mode: storages in the list will be denied (default is allowlist mode).
 }
 
-var userIDs []int64
-var storages []string
-var userStorages = make(map[int64][]string)
-
 func (c Config) GetStorageNamesByUserID(userID int64) []string {
-	us, ok := userStorages[userID]
+	us, ok := c.userStorages[userID]
 	if ok {
 		return us
 	}
@@ -23,11 +19,11 @@ func (c Config) GetStorageNamesByUserID(userID int64) []string {
 }
 
 func (c Config) GetUsersID() []int64 {
-	return userIDs
+	return c.userIDs
 }
 
 func (c Config) HasStorage(userID int64, storageName string) bool {
-	us, ok := userStorages[userID]
+	us, ok := c.userStorages[userID]
 	if !ok {
 		return false
 	}

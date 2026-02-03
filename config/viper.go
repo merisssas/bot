@@ -7,39 +7,45 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"time"
 
+	"github.com/charmbracelet/log"
 	"github.com/duke-git/lancet/v2/slice"
+	"github.com/fsnotify/fsnotify"
 	"github.com/merisssas/Bot/config/storage"
 	"github.com/spf13/viper"
 	"golang.org/x/net/proxy"
 )
 
 type Config struct {
-	Lang         string            `toml:"lang" mapstructure:"lang" json:"lang"`
-	Workers      int               `toml:"workers" mapstructure:"workers"`
-	Retry        int               `toml:"retry" mapstructure:"retry"`
-	NoCleanCache bool              `toml:"no_clean_cache" mapstructure:"no_clean_cache" json:"no_clean_cache"`
-	Threads      int               `toml:"threads" mapstructure:"threads" json:"threads"`
-	Stream       bool              `toml:"stream" mapstructure:"stream" json:"stream"`
-	Proxy        string            `toml:"proxy" mapstructure:"proxy" json:"proxy"`
-	Aria2        aria2Config       `toml:"aria2" mapstructure:"aria2" json:"aria2"`
-	Ytdlp        ytdlpConfig       `toml:"ytdlp" mapstructure:"ytdlp" json:"ytdlp"`
-	Directlinks  directlinksConfig `toml:"directlinks" mapstructure:"directlinks" json:"directlinks"`
+	Lang         string                  `toml:"lang" mapstructure:"lang" json:"lang" validate:"required,len=2"`
+	Workers      int                     `toml:"workers" mapstructure:"workers" validate:"required,min=1"`
+	Retry        int                     `toml:"retry" mapstructure:"retry" validate:"min=0"`
+	NoCleanCache bool                    `toml:"no_clean_cache" mapstructure:"no_clean_cache" json:"no_clean_cache"`
+	Threads      int                     `toml:"threads" mapstructure:"threads" json:"threads" validate:"min=1"`
+	Stream       bool                    `toml:"stream" mapstructure:"stream" json:"stream"`
+	Proxy        string                  `toml:"proxy" mapstructure:"proxy" json:"proxy" validate:"omitempty,url"`
+	Aria2        aria2Config             `toml:"aria2" mapstructure:"aria2" json:"aria2"`
+	Ytdlp        ytdlpConfig             `toml:"ytdlp" mapstructure:"ytdlp" json:"ytdlp"`
+	Directlinks  directlinksConfig       `toml:"directlinks" mapstructure:"directlinks" json:"directlinks"`
+	Cache        cacheConfig             `toml:"cache" mapstructure:"cache" json:"cache"`
+	Users        []userConfig            `toml:"users" mapstructure:"users" json:"users"`
+	Temp         tempConfig              `toml:"temp" mapstructure:"temp"`
+	DB           dbConfig                `toml:"db" mapstructure:"db"`
+	Telegram     telegramConfig          `toml:"telegram" mapstructure:"telegram"`
+	Storages     []storage.StorageConfig `toml:"-" mapstructure:"-" json:"storages"`
+	Parser       parserConfig            `toml:"parser" mapstructure:"parser" json:"parser"`
+	Hook         hookConfig              `toml:"hook" mapstructure:"hook" json:"hook"`
 
-	Cache    cacheConfig             `toml:"cache" mapstructure:"cache" json:"cache"`
-	Users    []userConfig            `toml:"users" mapstructure:"users" json:"users"`
-	Temp     tempConfig              `toml:"temp" mapstructure:"temp"`
-	DB       dbConfig                `toml:"db" mapstructure:"db"`
-	Telegram telegramConfig          `toml:"telegram" mapstructure:"telegram"`
-	Storages []storage.StorageConfig `toml:"-" mapstructure:"-" json:"storages"`
-	Parser   parserConfig            `toml:"parser" mapstructure:"parser" json:"parser"`
-	Hook     hookConfig              `toml:"hook" mapstructure:"hook" json:"hook"`
+	userIDs      []int64
+	userStorages map[int64][]string
 }
 
 type aria2Config struct {
 	Enable              bool              `toml:"enable" mapstructure:"enable" json:"enable"`
-	Url                 string            `toml:"url" mapstructure:"url" json:"url"`
+	Url                 string            `toml:"url" mapstructure:"url" json:"url" validate:"required_if=Enable true,omitempty,url"`
 	Secret              string            `toml:"secret" mapstructure:"secret" json:"secret"`
 	KeepFile            bool              `toml:"keep_file" mapstructure:"keep_file" json:"keep_file"`
 	RemoveAfterTransfer *bool             `toml:"remove_after_transfer" mapstructure:"remove_after_transfer" json:"remove_after_transfer"`
@@ -74,12 +80,12 @@ func (c aria2Config) RemoveAfterTransferEnabled() bool {
 }
 
 type ytdlpConfig struct {
-	MaxRetries            int           `toml:"max_retries" mapstructure:"max_retries" json:"max_retries"`
+	MaxRetries            int           `toml:"max_retries" mapstructure:"max_retries" json:"max_retries" validate:"min=0"`
 	RetryBaseDelay        time.Duration `toml:"retry_base_delay" mapstructure:"retry_base_delay" json:"retry_base_delay"`
 	RetryMaxDelay         time.Duration `toml:"retry_max_delay" mapstructure:"retry_max_delay" json:"retry_max_delay"`
 	RetryJitter           float64       `toml:"retry_jitter" mapstructure:"retry_jitter" json:"retry_jitter"`
-	DownloadConcurrency   int           `toml:"download_concurrency" mapstructure:"download_concurrency" json:"download_concurrency"`
-	FragmentConcurrency   int           `toml:"fragment_concurrency" mapstructure:"fragment_concurrency" json:"fragment_concurrency"`
+	DownloadConcurrency   int           `toml:"download_concurrency" mapstructure:"download_concurrency" json:"download_concurrency" validate:"min=1"`
+	FragmentConcurrency   int           `toml:"fragment_concurrency" mapstructure:"fragment_concurrency" json:"fragment_concurrency" validate:"min=1"`
 	EnableResume          bool          `toml:"enable_resume" mapstructure:"enable_resume" json:"enable_resume"`
 	Proxy                 string        `toml:"proxy" mapstructure:"proxy" json:"proxy"`
 	ProxyPool             []string      `toml:"proxy_pool" mapstructure:"proxy_pool" json:"proxy_pool"`
@@ -117,12 +123,12 @@ type ytdlpConfig struct {
 }
 
 type directlinksConfig struct {
-	MaxConcurrency     int           `toml:"max_concurrency" mapstructure:"max_concurrency" json:"max_concurrency"`
-	SegmentConcurrency int           `toml:"segment_concurrency" mapstructure:"segment_concurrency" json:"segment_concurrency"`
+	MaxConcurrency     int           `toml:"max_concurrency" mapstructure:"max_concurrency" json:"max_concurrency" validate:"min=1"`
+	SegmentConcurrency int           `toml:"segment_concurrency" mapstructure:"segment_concurrency" json:"segment_concurrency" validate:"min=1"`
 	MinMultipartSize   string        `toml:"min_multipart_size" mapstructure:"min_multipart_size" json:"min_multipart_size"`
 	MinSegmentSize     string        `toml:"min_segment_size" mapstructure:"min_segment_size" json:"min_segment_size"`
 	EnableResume       bool          `toml:"enable_resume" mapstructure:"enable_resume" json:"enable_resume"`
-	MaxRetries         int           `toml:"max_retries" mapstructure:"max_retries" json:"max_retries"`
+	MaxRetries         int           `toml:"max_retries" mapstructure:"max_retries" json:"max_retries" validate:"min=0"`
 	RetryBaseDelay     time.Duration `toml:"retry_base_delay" mapstructure:"retry_base_delay" json:"retry_base_delay"`
 	RetryMaxDelay      time.Duration `toml:"retry_max_delay" mapstructure:"retry_max_delay" json:"retry_max_delay"`
 	LimitRate          string        `toml:"limit_rate" mapstructure:"limit_rate" json:"limit_rate"`
@@ -141,10 +147,19 @@ type directlinksConfig struct {
 	DefaultPriority    int           `toml:"default_priority" mapstructure:"default_priority" json:"default_priority"`
 }
 
-var cfg = &Config{}
+var (
+	globalConfig atomic.Value
+	once         sync.Once
+	mu           sync.RWMutex
+)
 
+// C returns a read-only copy of the current configuration.
 func C() Config {
-	return *cfg
+	val := globalConfig.Load()
+	if val == nil {
+		return Config{}
+	}
+	return *val.(*Config)
 }
 
 func (c Config) GetStorageByName(name string) storage.StorageConfig {
@@ -157,38 +172,95 @@ func (c Config) GetStorageByName(name string) storage.StorageConfig {
 }
 
 func Init(ctx context.Context, configFile ...string) error {
-	viper.SetConfigType("toml")
-	viper.SetEnvPrefix("TELELOAD")
-	viper.AutomaticEnv()
-	replacer := strings.NewReplacer(".", "_")
-	viper.SetEnvKeyReplacer(replacer)
+	var initErr error
+	once.Do(func() {
+		initErr = loadConfig(ctx, configFile...)
+	})
+	return initErr
+}
 
-	// If a config file path is specified, use that file.
-	// The config file can be provided via an http(s) URL.
-	if len(configFile) > 0 && configFile[0] != "" {
-		cfg := configFile[0]
-		if strings.HasPrefix(cfg, "http://") || strings.HasPrefix(cfg, "https://") {
-			// Use a remote config file.
-			resp, err := http.Get(cfg)
-			if err != nil {
-				return fmt.Errorf("failed to fetch remote config file: %w", err)
-			}
-			defer resp.Body.Close()
-			if resp.StatusCode != http.StatusOK {
-				return fmt.Errorf("failed to fetch remote config file: status code %d", resp.StatusCode)
-			}
-			if err := viper.ReadConfig(resp.Body); err != nil {
-				return fmt.Errorf("failed to read remote config file: %w", err)
-			}
-		} else {
-			viper.SetConfigFile(cfg)
-		}
-	} else {
-		viper.SetConfigName("config")
-		viper.AddConfigPath(".")
-		viper.AddConfigPath("/etc/Teleload/")
+func loadConfig(ctx context.Context, configFile ...string) error {
+	mu.Lock()
+	defer mu.Unlock()
+
+	logger := log.FromContext(ctx)
+	v := viper.New()
+	v.SetConfigType("toml")
+	v.SetEnvPrefix("TELELOAD")
+	v.AutomaticEnv()
+	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
+
+	setDefaults(v)
+
+	configIsRemote, configPath := configureConfigSource(v, configFile...)
+	if err := readConfigWithDefaults(v, configIsRemote, configPath, logger); err != nil {
+		return err
 	}
 
+	cfg, err := buildConfigFromViper(ctx, v)
+	if err != nil {
+		return err
+	}
+
+	globalConfig.Store(cfg)
+	logger.Info("Configuration loaded", "workers", cfg.Workers)
+
+	if !configIsRemote && v.ConfigFileUsed() != "" {
+		v.OnConfigChange(func(e fsnotify.Event) {
+			logger.Info("Config file changed, reloading", "file", e.Name)
+			if err := reloadConfig(ctx, v); err != nil {
+				logger.Error("Config hot reload failed", "err", err)
+			}
+		})
+		v.WatchConfig()
+	}
+
+	return nil
+}
+
+func reloadConfig(ctx context.Context, v *viper.Viper) error {
+	mu.Lock()
+	defer mu.Unlock()
+
+	cfg, err := buildConfigFromViper(ctx, v)
+	if err != nil {
+		return err
+	}
+	globalConfig.Store(cfg)
+	log.FromContext(ctx).Info("Config hot reload successful")
+	return nil
+}
+
+func buildConfigFromViper(ctx context.Context, v *viper.Viper) (*Config, error) {
+	var cfg Config
+	if err := v.Unmarshal(&cfg); err != nil {
+		return nil, fmt.Errorf("error unmarshalling config: %w", err)
+	}
+
+	storagesConfig, err := storage.LoadStorageConfigs(v)
+	if err != nil {
+		return nil, fmt.Errorf("error loading storage configs: %w", err)
+	}
+	cfg.Storages = storagesConfig
+
+	if err := validateConfig(&cfg); err != nil {
+		return nil, err
+	}
+
+	if err := validateStorageUnique(&cfg); err != nil {
+		return nil, err
+	}
+
+	buildUserStorageCache(&cfg)
+
+	if err := applySystemSettings(&cfg, log.FromContext(ctx)); err != nil {
+		return nil, err
+	}
+
+	return &cfg, nil
+}
+
+func setDefaults(v *viper.Viper) {
 	defaultConfigs := map[string]any{
 		// Base config
 		"lang":    "en",
@@ -280,31 +352,128 @@ func Init(ctx context.Context, configFile ...string) error {
 	}
 
 	for key, value := range defaultConfigs {
-		viper.SetDefault(key, value)
+		v.SetDefault(key, value)
+	}
+}
+
+func configureConfigSource(v *viper.Viper, configFile ...string) (bool, string) {
+	if len(configFile) > 0 && configFile[0] != "" {
+		cfgPath := configFile[0]
+		if isRemoteConfig(cfgPath) {
+			return true, cfgPath
+		}
+		v.SetConfigFile(cfgPath)
+		return false, cfgPath
 	}
 
-	if err := viper.SafeWriteConfigAs("config.toml"); err != nil {
-		if _, ok := err.(viper.ConfigFileAlreadyExistsError); !ok {
-			return fmt.Errorf("error saving default config: %w", err)
+	v.SetConfigName("config")
+	v.AddConfigPath(".")
+	v.AddConfigPath("/etc/Teleload/")
+	return false, "config.toml"
+}
+
+func readConfigWithDefaults(v *viper.Viper, configIsRemote bool, configPath string, logger *log.Logger) error {
+	if configIsRemote {
+		if err := loadRemoteConfig(v, configPath); err != nil {
+			return err
+		}
+		return nil
+	}
+
+	if err := v.ReadInConfig(); err == nil {
+		return nil
+	} else if _, ok := err.(viper.ConfigFileNotFoundError); ok {
+		if err := v.SafeWriteConfigAs(configPath); err != nil {
+			if _, ok := err.(viper.ConfigFileAlreadyExistsError); !ok {
+				return fmt.Errorf("error saving default config: %w", err)
+			}
+		}
+		return v.ReadInConfig()
+	}
+
+	logger.Warn("Error reading config file", "err", err)
+	return err
+}
+
+func isRemoteConfig(path string) bool {
+	return strings.HasPrefix(path, "http://") || strings.HasPrefix(path, "https://")
+}
+
+func loadRemoteConfig(v *viper.Viper, configURL string) error {
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Get(configURL)
+	if err != nil {
+		return fmt.Errorf("failed to fetch remote config file: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("failed to fetch remote config file: status code %d", resp.StatusCode)
+	}
+	if err := v.ReadConfig(resp.Body); err != nil {
+		return fmt.Errorf("failed to read remote config file: %w", err)
+	}
+	return nil
+}
+
+func validateConfig(cfg *Config) error {
+	if strings.TrimSpace(cfg.Lang) == "" || len(cfg.Lang) != 2 {
+		return fmt.Errorf("invalid language code: %q", cfg.Lang)
+	}
+	if cfg.Workers < 1 {
+		return fmt.Errorf("workers must be at least 1")
+	}
+	if cfg.Threads < 1 {
+		return fmt.Errorf("threads must be at least 1")
+	}
+	if cfg.Retry < 0 {
+		return fmt.Errorf("retry must be non-negative")
+	}
+	if cfg.Proxy != "" {
+		if err := validateURL(cfg.Proxy); err != nil {
+			return fmt.Errorf("invalid proxy URL: %w", err)
 		}
 	}
-
-	if err := viper.ReadInConfig(); err != nil {
-		fmt.Println("Error reading config file, ", err)
-		return err
+	if cfg.Aria2.Enable {
+		if cfg.Aria2.Url == "" {
+			return fmt.Errorf("aria2.url is required when aria2 is enabled")
+		}
+		if err := validateURL(cfg.Aria2.Url); err != nil {
+			return fmt.Errorf("invalid aria2 URL: %w", err)
+		}
 	}
-
-	if err := viper.Unmarshal(cfg); err != nil {
-		fmt.Println("Error unmarshalling config file, ", err)
-		return err
+	if cfg.Ytdlp.DownloadConcurrency < 1 {
+		return fmt.Errorf("ytdlp.download_concurrency must be at least 1")
 	}
+	if cfg.Ytdlp.FragmentConcurrency < 1 {
+		return fmt.Errorf("ytdlp.fragment_concurrency must be at least 1")
+	}
+	if cfg.Ytdlp.MaxRetries < 0 {
+		return fmt.Errorf("ytdlp.max_retries must be non-negative")
+	}
+	if cfg.Directlinks.MaxConcurrency < 1 {
+		return fmt.Errorf("directlinks.max_concurrency must be at least 1")
+	}
+	if cfg.Directlinks.SegmentConcurrency < 1 {
+		return fmt.Errorf("directlinks.segment_concurrency must be at least 1")
+	}
+	if cfg.Directlinks.MaxRetries < 0 {
+		return fmt.Errorf("directlinks.max_retries must be non-negative")
+	}
+	return nil
+}
 
-	storagesConfig, err := storage.LoadStorageConfigs(viper.GetViper())
+func validateURL(rawURL string) error {
+	parsed, err := url.Parse(rawURL)
 	if err != nil {
-		return fmt.Errorf("error loading storage configs: %w", err)
+		return err
 	}
-	cfg.Storages = storagesConfig
+	if parsed.Scheme == "" || parsed.Host == "" {
+		return fmt.Errorf("missing scheme or host")
+	}
+	return nil
+}
 
+func validateStorageUnique(cfg *Config) error {
 	storageNames := make(map[string]struct{})
 	for _, storage := range cfg.Storages {
 		if _, ok := storageNames[storage.GetName()]; ok {
@@ -312,34 +481,41 @@ func Init(ctx context.Context, configFile ...string) error {
 		}
 		storageNames[storage.GetName()] = struct{}{}
 	}
+	return nil
+}
 
-	if cfg.Workers < 1 {
-		cfg.Workers = 1
-	}
-	if cfg.Threads < 1 {
-		cfg.Threads = 1
-	}
-	if cfg.Retry < 1 {
-		cfg.Retry = 1
-	}
-
+func buildUserStorageCache(cfg *Config) {
+	storageNames := make([]string, 0, len(cfg.Storages))
 	for _, storage := range cfg.Storages {
-		storages = append(storages, storage.GetName())
+		storageNames = append(storageNames, storage.GetName())
 	}
+
+	userIDs := make([]int64, 0, len(cfg.Users))
+	userStorages := make(map[int64][]string, len(cfg.Users))
 	for _, user := range cfg.Users {
 		userIDs = append(userIDs, user.ID)
 		if user.Blacklist {
-			userStorages[user.ID] = slice.Compact(slice.Difference(storages, user.Storages))
+			userStorages[user.ID] = slice.Compact(slice.Difference(storageNames, user.Storages))
 		} else {
 			userStorages[user.ID] = user.Storages
 		}
 	}
-	if cfg.Proxy != "" {
-		http.DefaultTransport, err = newProxyTransport(cfg.Proxy)
-		if err != nil {
-			return fmt.Errorf("failed to create proxy transport: %w", err)
-		}
+
+	cfg.userIDs = userIDs
+	cfg.userStorages = userStorages
+}
+
+func applySystemSettings(cfg *Config, logger *log.Logger) error {
+	if cfg.Proxy == "" {
+		return nil
 	}
+
+	transport, err := newProxyTransport(cfg.Proxy)
+	if err != nil {
+		return fmt.Errorf("failed to create proxy transport: %w", err)
+	}
+	http.DefaultTransport = transport
+	logger.Info("System proxy configured", "url", cfg.Proxy)
 	return nil
 }
 
