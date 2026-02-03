@@ -6,95 +6,154 @@ import (
 
 	"github.com/celestix/gotgproto/dispatcher"
 	"github.com/celestix/gotgproto/ext"
+	"github.com/charmbracelet/log"
 	"github.com/gotd/td/tg"
 	"github.com/merisssas/Bot/common/utils/tgutil"
 	"github.com/merisssas/Bot/pkg/tfile"
 )
 
-type MediaMessageEvent struct {
-	Ctx       *ext.Context
-	ChatID    int64 // from witch the media message was sent
-	MessageID int
-	File      tfile.TGFileMessage
-}
-
-type messageKey struct {
-	ChatID    int64
-	MessageID int
-}
-
-type MediaMessageHandler struct {
-	events   map[messageKey]MediaMessageEvent
-	timers   map[messageKey]*time.Timer
-	mu       sync.Mutex
-	debounce time.Duration
-}
-
-var (
-	mediaMessageCh      = make(chan MediaMessageEvent, 100)
-	mediaMessageHandler = &MediaMessageHandler{
-		events:   make(map[messageKey]MediaMessageEvent),
-		timers:   make(map[messageKey]*time.Timer),
-		debounce: 5 * time.Second,
-	}
+// --- Configuration Constants ---
+const (
+	// AlbumWaitWindow defines the wait time to collect album parts.
+	AlbumWaitWindow = 2 * time.Second
+	// MaxBufferSize prevents channel blocking under high load.
+	MaxBufferSize = 1000
 )
 
-func GetMediaMessageCh() chan MediaMessageEvent {
-	return mediaMessageCh
+// MediaEvent represents a processed media item ready for download.
+type MediaEvent struct {
+	Ctx       *ext.Context
+	ChatID    int64
+	MessageID int
+	GroupID   int64
+	File      tfile.TGFileMessage
+	Timestamp time.Time
 }
 
-func sendMediaMessageEvent(event MediaMessageEvent) {
-	key := messageKey{ChatID: event.ChatID, MessageID: event.MessageID}
+// MediaBatch represents a collection of media (single or album).
+type MediaBatch struct {
+	ChatID  int64
+	GroupID int64
+	Events  []MediaEvent
+}
 
-	mediaMessageHandler.mu.Lock()
-	defer mediaMessageHandler.mu.Unlock()
+type batchManager struct {
+	batches  map[int64]*batchBuffer
+	mu       sync.Mutex
+	outputCh chan MediaBatch
+}
 
-	if timer, exists := mediaMessageHandler.timers[key]; exists {
-		timer.Stop()
-	} else {
-		mediaMessageHandler.events[key] = event
+type batchBuffer struct {
+	timer  *time.Timer
+	events []MediaEvent
+}
+
+var manager = &batchManager{
+	batches:  make(map[int64]*batchBuffer),
+	outputCh: make(chan MediaBatch, MaxBufferSize),
+}
+
+// GetMediaBatchCh exposes the read-only channel for batch consumers.
+func GetMediaBatchCh() <-chan MediaBatch {
+	return manager.outputCh
+}
+
+func (m *batchManager) ingest(event MediaEvent) {
+	if event.GroupID == 0 {
+		m.dispatchBatch(MediaBatch{
+			ChatID:  event.ChatID,
+			GroupID: 0,
+			Events:  []MediaEvent{event},
+		}, event.Ctx)
+		return
 	}
 
-	mediaMessageHandler.timers[key] = time.AfterFunc(mediaMessageHandler.debounce, func() {
-		mediaMessageHandler.mu.Lock()
-		event := mediaMessageHandler.events[key]
-		delete(mediaMessageHandler.events, key)
-		delete(mediaMessageHandler.timers, key)
-		mediaMessageHandler.mu.Unlock()
+	m.mu.Lock()
+	defer m.mu.Unlock()
 
-		mediaMessageCh <- event
+	buffer, exists := m.batches[event.GroupID]
+	if exists {
+		if buffer.timer != nil {
+			buffer.timer.Stop()
+		}
+		buffer.events = append(buffer.events, event)
+	} else {
+		buffer = &batchBuffer{
+			events: []MediaEvent{event},
+		}
+		m.batches[event.GroupID] = buffer
+	}
+
+	buffer.timer = time.AfterFunc(AlbumWaitWindow, func() {
+		m.flush(event.GroupID)
 	})
+}
+
+func (m *batchManager) dispatchBatch(batch MediaBatch, ctx *ext.Context) {
+	select {
+	case m.outputCh <- batch:
+	default:
+		if ctx != nil {
+			log.FromContext(ctx).Warnf("Media batch channel full, dropping batch group %d", batch.GroupID)
+		}
+	}
+}
+
+func (m *batchManager) flush(groupID int64) {
+	m.mu.Lock()
+	buffer, exists := m.batches[groupID]
+	if !exists {
+		m.mu.Unlock()
+		return
+	}
+	delete(m.batches, groupID)
+	m.mu.Unlock()
+
+	if len(buffer.events) == 0 {
+		return
+	}
+
+	m.dispatchBatch(MediaBatch{
+		ChatID:  buffer.events[0].ChatID,
+		GroupID: groupID,
+		Events:  buffer.events,
+	}, buffer.events[0].Ctx)
 }
 
 func handleMediaMessage(ctx *ext.Context, update *ext.Update) error {
 	message := update.EffectiveMessage
+	if message == nil {
+		return dispatcher.EndGroups
+	}
 	media, ok := message.GetMedia()
 	if !ok || media == nil {
 		return dispatcher.EndGroups
 	}
-	support := func() bool {
-		switch media.(type) {
-		case *tg.MessageMediaDocument, *tg.MessageMediaPhoto:
-			return true
-		default:
-			return false
-		}
-	}()
-	if !support {
+	switch media.(type) {
+	case *tg.MessageMediaDocument, *tg.MessageMediaPhoto:
+	default:
 		return dispatcher.EndGroups
 	}
+
+	var groupID int64
+	if message.GroupedID != 0 {
+		groupID = message.GroupedID
+	}
+
 	file, err := tfile.FromMediaMessage(media, ctx.Raw, message.Message, tfile.WithNameIfEmpty(
 		tgutil.GenFileNameFromMessage(*message.Message),
 	))
 	if err != nil {
 		return err
 	}
-	chatId := update.EffectiveChat().GetID()
-	sendMediaMessageEvent(MediaMessageEvent{
+	chatID := update.EffectiveChat().GetID()
+	manager.ingest(MediaEvent{
 		Ctx:       ctx,
-		ChatID:    chatId,
+		ChatID:    chatID,
 		MessageID: message.ID,
+		GroupID:   groupID,
 		File:      file,
+		Timestamp: time.Now(),
 	})
 	return dispatcher.EndGroups
 }

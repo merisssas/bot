@@ -5,9 +5,7 @@ import (
 	"path"
 	"regexp"
 	"strings"
-	"sync"
 	"text/template"
-	"time"
 
 	"github.com/celestix/gotgproto/dispatcher"
 	"github.com/celestix/gotgproto/ext"
@@ -18,7 +16,6 @@ import (
 	"github.com/merisssas/Bot/common/i18n"
 	"github.com/merisssas/Bot/common/i18n/i18nk"
 	"github.com/merisssas/Bot/common/utils/tgutil"
-	"github.com/merisssas/Bot/config"
 	"github.com/merisssas/Bot/core"
 	coretfile "github.com/merisssas/Bot/core/tasks/tfile"
 	"github.com/merisssas/Bot/database"
@@ -155,88 +152,36 @@ func handleUnwatchCmd(ctx *ext.Context, update *ext.Update) error {
 	return dispatcher.EndGroups
 }
 
-type watchMediaGroupHandler struct {
-	groups map[int64]map[uint][]tfile.TGFileMessage // chatID -> userID -> files
-	timers map[int64]map[uint]*time.Timer
-	mu     sync.Mutex
-}
-
-var watchMediaGroupMgr = &watchMediaGroupHandler{
-	groups: make(map[int64]map[uint][]tfile.TGFileMessage),
-	timers: make(map[int64]map[uint]*time.Timer),
-}
-
-func (w *watchMediaGroupHandler) addFile(chatID int64, userID uint, file tfile.TGFileMessage, timeout time.Duration, callback func([]tfile.TGFileMessage)) {
-	w.mu.Lock()
-	defer w.mu.Unlock()
-
-	if w.groups[chatID] == nil {
-		w.groups[chatID] = make(map[uint][]tfile.TGFileMessage)
-	}
-	if w.timers[chatID] == nil {
-		w.timers[chatID] = make(map[uint]*time.Timer)
-	}
-
-	if timer, exists := w.timers[chatID][userID]; exists {
-		timer.Stop()
-	}
-
-	w.groups[chatID][userID] = append(w.groups[chatID][userID], file)
-
-	w.timers[chatID][userID] = time.AfterFunc(timeout, func() {
-		w.mu.Lock()
-		files := w.groups[chatID][userID]
-		delete(w.groups[chatID], userID)
-		delete(w.timers[chatID], userID)
-		if len(w.groups[chatID]) == 0 {
-			delete(w.groups, chatID)
-		}
-		if len(w.timers[chatID]) == 0 {
-			delete(w.timers, chatID)
-		}
-		w.mu.Unlock()
-
-		if len(files) > 0 {
-			callback(files)
-		}
-	})
-}
-
-func listenMediaMessageEvent(ch chan userclient.MediaMessageEvent) {
+func listenMediaMessageEvent(ch <-chan userclient.MediaBatch) {
 	if userclient.GetCtx() == nil {
 		return
 	}
 	logger := log.FromContext(userclient.GetCtx())
-	for event := range ch {
-		logger.Debug("Received media message event", "chat_id", event.ChatID, "file_name", event.File.Name())
-		ctx := event.Ctx
-		file := event.File
-		chats, err := database.GetWatchChatsByChatID(ctx, event.ChatID)
-		if err != nil {
-			logger.Errorf("Failed to get watch chats for chat ID %d: %v", event.ChatID, err)
+	for batch := range ch {
+		logger.Debug("Received media batch event", "chat_id", batch.ChatID, "group_id", batch.GroupID, "event_count", len(batch.Events))
+		if len(batch.Events) == 0 {
 			continue
 		}
-		msgText := event.File.Message().GetMessage()
+		ctx := batch.Events[0].Ctx
+		chats, err := database.GetWatchChatsByChatID(ctx, batch.ChatID)
+		if err != nil {
+			logger.Errorf("Failed to get watch chats for chat ID %d: %v", batch.ChatID, err)
+			continue
+		}
 		for _, chat := range chats {
+			albumFiles := make([]tfile.TGFileMessage, 0, len(batch.Events))
+			filterEnabled := false
+			filterType := ""
+			filterData := ""
 			if chat.Filter != "" {
 				filter := strings.Split(chat.Filter, ":")
 				if len(filter) != 2 {
 					logger.Warnf("Invalid filter format in chat %d, skipping", chat.ChatID)
 					continue
 				}
-				filterType := filter[0]
-				filterData := filter[1]
-				switch filterType {
-				case "msgre": // [TODO] enums for filter types
-					if ok, err := regexp.MatchString(filterData, msgText); err != nil {
-						continue
-					} else if !ok {
-						continue
-					}
-				default:
-					logger.Warnf("Unsupported filter type %s in chat %d, skipping", filterType, chat.ChatID)
-					continue
-				}
+				filterEnabled = true
+				filterType = filter[0]
+				filterData = filter[1]
 			}
 			user, err := database.GetUserByID(ctx, chat.UserID)
 			if err != nil {
@@ -252,76 +197,90 @@ func listenMediaMessageEvent(ch chan userclient.MediaMessageEvent) {
 				logger.Errorf("Failed to get storage by user ID %d and name %s: %v", user.ChatID, user.DefaultStorage, err)
 				continue
 			}
-			switch user.FilenameStrategy {
-			case fnamest.Message.String():
-				file.SetName(tgutil.GenFileNameFromMessage(*file.Message()))
-			case fnamest.Template.String():
-				if user.FilenameTemplate == "" {
-					logger.Warnf("Empty filename template for user %d, using default filename", user.ChatID)
-					break
-				}
-				message := file.Message()
-				tmpl, err := template.New("filename").Parse(user.FilenameTemplate)
-				if err != nil {
-					logger.Errorf("Failed to parse filename template for user %d: %s", user.ChatID, err)
-					break
-				}
-				data := mediautil.BuildFilenameTemplateData(message)
-				var sb strings.Builder
-				err = tmpl.Execute(&sb, data)
-				if err != nil {
-					log.FromContext(ctx).Errorf("failed to execute filename template: %s", err)
-					break
-				}
-				file.SetName(sb.String())
-			}
-
-			// Check if this is a media group and if rules specify NEW-FOR-ALBUM
-			groupID, isGroup := file.Message().GetGroupedID()
-			needAlbumHandling := false
-			if isGroup && groupID != 0 && user.ApplyRule && user.Rules != nil {
-				_, _, matchedDirPath := ruleutil.ApplyRule(ctx, user.Rules, ruleutil.NewInput(file))
-				needAlbumHandling = matchedDirPath.NeedNewForAlbum()
-			}
-
-			if needAlbumHandling {
-				// For media groups with NEW-FOR-ALBUM rule, collect all files of the same group
-				watchMediaGroupMgr.addFile(event.ChatID, user.ID, file, time.Duration(config.C().Telegram.MediaGroupTimeout)*time.Second, func(files []tfile.TGFileMessage) {
-					processWatchMediaGroup(ctx, user, stor, "", files)
-				})
-				continue
-			}
-
-			// Process single file or media group without album folder creation
-			var dirPath string
-			if user.ApplyRule && user.Rules != nil {
-				matched, matchedStorageName, matchedDirPath := ruleutil.ApplyRule(ctx, user.Rules, ruleutil.NewInput(file))
-				if !matched {
-					goto startCreateTask
-				}
-				dirPath = matchedDirPath.String()
-				if matchedStorageName.Usable() {
-					stor, err = storage.GetStorageByUserIDAndName(ctx, user.ChatID, matchedStorageName.String())
-					if err != nil {
-						logger.Errorf("Failed to get storage by user ID and name: %s", err)
+			for _, event := range batch.Events {
+				file := event.File
+				msgText := file.Message().GetMessage()
+				if filterEnabled {
+					switch filterType {
+					case "msgre": // [TODO] enums for filter types
+						if ok, err := regexp.MatchString(filterData, msgText); err != nil {
+							continue
+						} else if !ok {
+							continue
+						}
+					default:
+						logger.Warnf("Unsupported filter type %s in chat %d, skipping", filterType, chat.ChatID)
 						continue
 					}
 				}
+				switch user.FilenameStrategy {
+				case fnamest.Message.String():
+					file.SetName(tgutil.GenFileNameFromMessage(*file.Message()))
+				case fnamest.Template.String():
+					if user.FilenameTemplate == "" {
+						logger.Warnf("Empty filename template for user %d, using default filename", user.ChatID)
+						break
+					}
+					message := file.Message()
+					tmpl, err := template.New("filename").Parse(user.FilenameTemplate)
+					if err != nil {
+						logger.Errorf("Failed to parse filename template for user %d: %s", user.ChatID, err)
+						break
+					}
+					data := mediautil.BuildFilenameTemplateData(message)
+					var sb strings.Builder
+					err = tmpl.Execute(&sb, data)
+					if err != nil {
+						log.FromContext(ctx).Errorf("failed to execute filename template: %s", err)
+						break
+					}
+					file.SetName(sb.String())
+				}
+
+				needAlbumHandling := false
+				if batch.GroupID != 0 && user.ApplyRule && user.Rules != nil {
+					_, _, matchedDirPath := ruleutil.ApplyRule(ctx, user.Rules, ruleutil.NewInput(file))
+					needAlbumHandling = matchedDirPath.NeedNewForAlbum()
+				}
+
+				if needAlbumHandling {
+					albumFiles = append(albumFiles, file)
+					continue
+				}
+
+				var dirPath string
+				if user.ApplyRule && user.Rules != nil {
+					matched, matchedStorageName, matchedDirPath := ruleutil.ApplyRule(ctx, user.Rules, ruleutil.NewInput(file))
+					if !matched {
+						goto startCreateTask
+					}
+					dirPath = matchedDirPath.String()
+					if matchedStorageName.Usable() {
+						stor, err = storage.GetStorageByUserIDAndName(ctx, user.ChatID, matchedStorageName.String())
+						if err != nil {
+							logger.Errorf("Failed to get storage by user ID and name: %s", err)
+							continue
+						}
+					}
+				}
+			startCreateTask:
+				storagePath := path.Join(dirPath, file.Name())
+				injectCtx := tgutil.ExtWithContext(ctx.Context, ctx)
+				taskid := xid.New().String()
+				task, err := coretfile.NewTGFileTask(taskid, injectCtx, file, stor, storagePath, nil)
+				if err != nil {
+					logger.Errorf("create task failed: %s", err)
+					continue
+				}
+				if err := core.AddTask(injectCtx, task); err != nil {
+					logger.Errorf("add task failed: %s", err)
+					continue
+				}
+				logger.Infof("Added media message task for user %d in chat %d: %s", chat.UserID, batch.ChatID, file.Name())
 			}
-		startCreateTask:
-			storagePath := path.Join(dirPath, file.Name())
-			injectCtx := tgutil.ExtWithContext(ctx.Context, ctx)
-			taskid := xid.New().String()
-			task, err := coretfile.NewTGFileTask(taskid, injectCtx, file, stor, storagePath, nil)
-			if err != nil {
-				logger.Errorf("create task failed: %s", err)
-				continue
+			if len(albumFiles) > 0 {
+				processWatchMediaGroup(ctx, user, stor, "", albumFiles)
 			}
-			if err := core.AddTask(injectCtx, task); err != nil {
-				logger.Errorf("add task failed: %s", err)
-				continue
-			}
-			logger.Infof("Added media message task for user %d in chat %d: %s", chat.UserID, event.ChatID, file.Name())
 		}
 	}
 }
