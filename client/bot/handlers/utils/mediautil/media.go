@@ -78,7 +78,12 @@ func TfileOptions(ctx *ext.Context, user *database.User, message *tg.Message) []
 	default:
 		fnameOpt = tfile.WithNameIfEmpty(tgutil.GenFileNameFromMessage(*message))
 	}
-	refresher := tfile.WithRefresher(func(refreshCtx context.Context) (tg.InputFileLocationClass, int64, string, error) {
+	opts = append(opts, fnameOpt, tfile.WithMessage(message), RefresherOption(ctx, message))
+	return opts
+}
+
+func RefresherOption(ctx *ext.Context, message *tg.Message) tfile.TGFileOption {
+	return tfile.WithRefresher(func(refreshCtx context.Context) (tg.InputFileLocationClass, int64, string, error) {
 		if refreshCtx != nil {
 			if err := refreshCtx.Err(); err != nil {
 				return nil, 0, "", err
@@ -102,8 +107,6 @@ func TfileOptions(ctx *ext.Context, user *database.User, message *tg.Message) []
 		}
 		return freshFile.Location(), freshFile.Size(), freshFile.Name(), nil
 	})
-	opts = append(opts, fnameOpt, tfile.WithMessage(message), refresher)
-	return opts
 }
 
 func BuildFilenameTemplateData(message *tg.Message) map[string]string {

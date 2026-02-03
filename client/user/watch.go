@@ -7,6 +7,7 @@ import (
 	"github.com/celestix/gotgproto/dispatcher"
 	"github.com/celestix/gotgproto/ext"
 	"github.com/gotd/td/tg"
+	"github.com/merisssas/Bot/client/bot/handlers/utils/mediautil"
 	"github.com/merisssas/Bot/common/utils/tgutil"
 	"github.com/merisssas/Bot/pkg/tfile"
 )
@@ -83,9 +84,13 @@ func handleMediaMessage(ctx *ext.Context, update *ext.Update) error {
 	if !support {
 		return dispatcher.EndGroups
 	}
-	file, err := tfile.FromMediaMessage(media, ctx.Raw, message.Message, tfile.WithNameIfEmpty(
-		tgutil.GenFileNameFromMessage(*message.Message),
-	))
+	file, err := tfile.FromMediaMessage(
+		media,
+		ctx.Raw,
+		message.Message,
+		tfile.WithNameIfEmpty(tgutil.GenFileNameFromMessage(*message.Message)),
+		mediautil.RefresherOption(ctx, message.Message),
+	)
 	if err != nil {
 		return err
 	}
