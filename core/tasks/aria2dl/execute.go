@@ -10,7 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
-	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/charmbracelet/log"
@@ -22,71 +22,62 @@ import (
 
 const (
 	maxConcurrentTransfers = 8
-	uploadBufferSize       = 4 * 1024 * 1024
+	transferBufferSize     = 4 * 1024 * 1024
 	maxRetriesDefault      = 5
+	defaultPollInterval    = 2 * time.Second
 )
 
-var (
-	jitterMu   sync.Mutex
-	jitterRand = rand.New(rand.NewSource(time.Now().UnixNano()))
-)
+func init() {
+	rand.Seed(time.Now().UnixNano())
+}
 
 // Execute implements core.Executable.
-func (t *Task) Execute(ctx context.Context) error {
-	logger := log.FromContext(ctx)
-	logger.Infof("Starting aria2 download task %s (GID: %s)", t.ID, t.GID())
+func (t *Task) Execute(ctx context.Context) (err error) {
+	logger := log.FromContext(ctx).With("gid", t.GID(), "task", t.ID)
+	logger.Info("Starting aria2 execution pipeline")
 
 	if t.Progress != nil {
 		t.Progress.OnStart(ctx, t)
+		defer func() {
+			t.Progress.OnDone(ctx, t, err)
+		}()
 	}
+
+	defer func() {
+		cleanupCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if _, rmErr := t.Aria2Client.RemoveDownloadResult(cleanupCtx, t.GID()); rmErr != nil {
+			logger.Debug("Failed to remove aria2 download result (possibly already removed)", "err", rmErr)
+		}
+	}()
 
 	if t.Config.DryRun {
 		return t.executeDryRun(ctx)
 	}
 
-	if err := t.applyBurstLimit(ctx); err != nil {
-		logger.Warnf("Failed to apply burst rate: %v", err)
+	if err := t.applyTrafficShaping(ctx); err != nil {
+		logger.Warn("Failed to apply traffic shaping rules", "err", err)
 	}
 
-	// Wait for aria2 download to complete
-	if err := t.waitForDownload(ctx); err != nil {
-		// If context was canceled, also cancel the aria2 download
+	if err := t.monitorDownloadLoop(ctx, logger); err != nil {
 		if errors.Is(err, context.Canceled) {
-			t.cancelAria2Download()
-		}
-		logger.Errorf("Aria2 download failed: %v", err)
-		if t.Progress != nil {
-			t.Progress.OnDone(ctx, t, err)
+			logger.Info("Task cancelled by user")
+			t.cancelAria2Task(context.Background())
 		}
 		return err
 	}
 
-	// Transfer downloaded files to storage
-	if err := t.transferFiles(ctx); err != nil {
-		logger.Errorf("File transfer failed: %v", err)
-		if t.Progress != nil {
-			t.Progress.OnDone(ctx, t, err)
-		}
-		return err
+	if err := t.transferFilesParallel(ctx, logger); err != nil {
+		return fmt.Errorf("transfer phase failed: %w", err)
 	}
 
-	logger.Infof("Aria2 task %s completed successfully", t.ID)
-	if t.Progress != nil {
-		t.Progress.OnDone(ctx, t, nil)
-	}
-
-	// Clean up aria2 download result
-	if _, err := t.Aria2Client.RemoveDownloadResult(context.Background(), t.GID()); err != nil {
-		logger.Warnf("Failed to remove aria2 download result: %v", err)
-	}
-
+	logger.Info("Task completed successfully")
 	return nil
 }
 
-// waitForDownload waits for aria2 to complete the download
-func (t *Task) waitForDownload(ctx context.Context) error {
-	logger := log.FromContext(ctx)
-	ticker := time.NewTicker(2 * time.Second)
+// monitorDownloadLoop waits for aria2 to complete the download.
+func (t *Task) monitorDownloadLoop(ctx context.Context, logger *log.Logger) error {
+	ticker := time.NewTicker(defaultPollInterval)
 	defer ticker.Stop()
 
 	for {
@@ -94,90 +85,70 @@ func (t *Task) waitForDownload(ctx context.Context) error {
 		case <-ctx.Done():
 			return ctx.Err()
 		case <-ticker.C:
-			status, err := t.getStatus(ctx)
+			status, err := t.fetchStatus(ctx)
 			if err != nil {
-				logger.Warnf("Temporary status check failure: %v", err)
+				logger.Warn("Temporary status check failure", "err", err)
 				continue
 			}
 
-			if t.Progress != nil {
-				t.Progress.OnProgress(ctx, t, status)
-			}
-			t.UpdateStats(
-				statusToInt64(status.CompletedLength),
-				statusToInt64(status.TotalLength),
-				statusToInt64(status.DownloadSpeed),
-				statusToInt(status.Connections),
-			)
+			t.reportProgress(ctx, status)
 
 			// Check if download is complete
 			if status.IsDownloadComplete() {
 				// Handle metadata downloads (torrent/magnet) that spawn follow-up downloads
 				if len(status.FollowedBy) > 0 {
-					logger.Infof("Switching from metadata GID %s to actual download GID: %s", t.GID(), status.FollowedBy[0])
-					t.SetGID(status.FollowedBy[0])
+					newGID := status.FollowedBy[0]
+					logger.Info("Metadata acquired, switching to payload download", "old_gid", t.GID(), "new_gid", newGID)
+					t.SetGID(newGID)
+					_, _ = t.Aria2Client.RemoveDownloadResult(ctx, status.GID)
 					continue
 				}
-				logger.Infof("Download completed for GID %s", t.GID())
+				logger.Info("Download completed")
 				return nil
 			}
 
 			// Check for errors
 			if status.IsDownloadError() {
-				t.SetError(fmt.Errorf("aria2 download error: %s (code: %s)", status.ErrorMessage, status.ErrorCode))
-				return fmt.Errorf("aria2 download error: %s (code: %s)", status.ErrorMessage, status.ErrorCode)
+				err := fmt.Errorf("aria2 download error: %s (code: %s)", status.ErrorMessage, status.ErrorCode)
+				t.SetError(err)
+				return err
 			}
 
 			if status.IsDownloadRemoved() {
-				t.SetError(errors.New("aria2 download was removed"))
 				return errors.New("aria2 download was removed")
 			}
 		}
 	}
 }
 
-// getStatus retrieves the current status of the download
-func (t *Task) getStatus(ctx context.Context) (*aria2.Status, error) {
-	logger := log.FromContext(ctx)
-
-	// Try active/waiting queue first
-	status, err := t.Aria2Client.TellStatus(ctx, t.GID(),
+// fetchStatus retrieves the current status of the download.
+func (t *Task) fetchStatus(ctx context.Context) (*aria2.Status, error) {
+	keys := []string{
+		"gid",
 		"status",
 		"totalLength",
 		"completedLength",
 		"downloadSpeed",
 		"connections",
-		"numSeeders",
 		"files",
 		"followedBy",
 		"errorCode",
 		"errorMessage",
 		"dir",
-		"bittorrent",
-		"infoHash",
-	)
+	}
+
+	status, err := t.Aria2Client.TellStatus(ctx, t.GID(), keys...)
 	if err == nil {
-		if len(status.Files) == 0 {
-			files, filesErr := t.Aria2Client.GetFiles(ctx, t.GID())
-			if filesErr != nil {
-				logger.Debugf("Failed to get aria2 files for GID %s: %v", t.GID(), filesErr)
-			} else {
-				status.Files = files
-			}
-		}
 		return status, nil
 	}
 
-	// Check stopped queue
-	logger.Debugf("Task not in active queue, checking stopped queue")
-	stoppedTasks, stopErr := t.Aria2Client.TellStopped(ctx, -1, 100)
+	stopped, stopErr := t.Aria2Client.TellStopped(ctx, 0, 100, keys...)
 	if stopErr != nil {
 		return nil, fmt.Errorf("failed to get aria2 status: %w", err)
 	}
 
-	for _, task := range stoppedTasks {
+	for _, task := range stopped {
 		if task.GID == t.GID() {
-			logger.Debugf("Found task in stopped queue with status: %s", task.Status)
 			return &task, nil
 		}
 	}
@@ -185,45 +156,31 @@ func (t *Task) getStatus(ctx context.Context) (*aria2.Status, error) {
 	return nil, fmt.Errorf("task GID %s not found: %w", t.GID(), err)
 }
 
-// transferFiles transfers downloaded files from aria2 to storage
-func (t *Task) transferFiles(ctx context.Context) error {
-	logger := log.FromContext(ctx)
-
-	status, err := t.Aria2Client.TellStatus(ctx, t.GID())
+// transferFilesParallel transfers downloaded files from aria2 to storage.
+func (t *Task) transferFilesParallel(ctx context.Context, logger *log.Logger) error {
+	status, err := t.fetchStatus(ctx)
 	if err != nil {
-		return fmt.Errorf("failed to get final status: %w", err)
+		return err
 	}
 
-	if len(status.Files) == 0 {
-		return errors.New("no files in aria2 download")
+	files := filterValidFiles(status.Files)
+	if len(files) == 0 {
+		return errors.New("no valid files in aria2 download")
 	}
 
-	commonDir := filepath.Dir(status.Files[0].Path)
+	commonDir := filepath.Dir(files[0].Path)
 	if status.Dir != "" {
 		commonDir = status.Dir
 	}
 
-	logger.Infof("Transferring %d file(s) to storage %s with up to %d concurrent workers", len(status.Files), t.Storage.Name(), maxConcurrentTransfers)
+	logger.Infof("Transferring %d file(s) to storage %s with up to %d concurrent workers", len(files), t.Storage.Name(), maxConcurrentTransfers)
 
 	group, groupCtx := errgroup.WithContext(ctx)
 	group.SetLimit(maxConcurrentTransfers)
 
-	transferredCount := 0
-	var mu sync.Mutex
+	var transferredCount atomic.Int32
 
-	for _, file := range status.Files {
-		if file.Selected != "true" {
-			logger.Debugf("Skipping unselected file: %s", file.Path)
-			continue
-		}
-
-		fileName := filepath.Base(file.Path)
-		if filepath.Ext(fileName) == ".torrent" {
-			logger.Debugf("Skipping torrent metadata file: %s", fileName)
-			t.removeFileIfNeeded(ctx, file.Path)
-			continue
-		}
-
+	for _, file := range files {
 		file := file
 		group.Go(func() error {
 			relPath, err := filepath.Rel(commonDir, file.Path)
@@ -236,11 +193,9 @@ func (t *Task) transferFiles(ctx context.Context) error {
 				return fmt.Errorf("failed to transfer %s: %w", relPath, err)
 			}
 
-			mu.Lock()
-			transferredCount++
-			mu.Unlock()
+			transferredCount.Add(1)
 
-			t.removeFileIfNeeded(groupCtx, file.Path)
+			t.cleanupLocalFile(groupCtx, file.Path)
 			return nil
 		})
 	}
@@ -249,7 +204,7 @@ func (t *Task) transferFiles(ctx context.Context) error {
 		return err
 	}
 
-	if transferredCount == 0 {
+	if transferredCount.Load() == 0 {
 		return errors.New("no files were transferred")
 	}
 
@@ -257,36 +212,39 @@ func (t *Task) transferFiles(ctx context.Context) error {
 }
 
 func (t *Task) transferFileWithRetry(ctx context.Context, srcPath, destRelPath string) error {
-	logger := log.FromContext(ctx)
 	maxRetries := t.Config.MaxRetries
 	if maxRetries <= 0 {
 		maxRetries = maxRetriesDefault
 	}
 
+	var lastErr error
 	for attempt := 0; attempt <= maxRetries; attempt++ {
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
+
 		if err := t.transferSingleFile(ctx, srcPath, destRelPath); err == nil {
 			return nil
 		} else if os.IsNotExist(err) {
-			logger.Warnf("Downloaded file not found: %s", srcPath)
+			log.FromContext(ctx).Warn("Downloaded file not found", "path", srcPath)
 			return nil
-		} else if attempt == maxRetries {
-			t.SetError(err)
-			return fmt.Errorf("max retries reached for %s: %w", destRelPath, err)
-		} else {
-			backoff := t.computeBackoff(attempt)
+		}
+
+		lastErr = err
+		if attempt < maxRetries {
+			backoff := t.calculateBackoff(attempt)
 			retryCount := t.IncrementRetry()
 			t.SetError(err)
-			logger.Warnf("Transfer failed for %s (attempt %d/%d, retry=%d), retrying in %v: %v", destRelPath, attempt+1, maxRetries, retryCount, backoff, err)
-
+			log.FromContext(ctx).Warn("Transfer failed, retrying", "file", destRelPath, "attempt", attempt+1, "max", maxRetries, "retry", retryCount, "next_retry", backoff, "err", err)
 			select {
+			case <-time.After(backoff):
 			case <-ctx.Done():
 				return ctx.Err()
-			case <-time.After(backoff):
 			}
 		}
 	}
 
-	return nil
+	return fmt.Errorf("max retries reached for %s: %w", destRelPath, lastErr)
 }
 
 func (t *Task) transferSingleFile(ctx context.Context, srcPath, destRelPath string) error {
@@ -303,7 +261,7 @@ func (t *Task) transferSingleFile(ctx context.Context, srcPath, destRelPath stri
 		return err
 	}
 
-	reader := bufio.NewReaderSize(f, uploadBufferSize)
+	reader := bufio.NewReaderSize(f, transferBufferSize)
 	ctx = context.WithValue(ctx, ctxkey.ContentLength, fileInfo.Size())
 
 	destPath := filepath.Join(t.StorPath, destRelPath)
@@ -321,10 +279,6 @@ func (t *Task) executeDryRun(ctx context.Context) error {
 	logger := log.FromContext(ctx)
 	result, err := DryRun(ctx, t.Config, t.URIs)
 	if err != nil {
-		t.SetError(err)
-		if t.Progress != nil {
-			t.Progress.OnDone(ctx, t, err)
-		}
 		return err
 	}
 
@@ -335,14 +289,11 @@ func (t *Task) executeDryRun(ctx context.Context) error {
 		logger.Warnf("Dry-run skipped URI: %s", skipped)
 	}
 
-	if t.Progress != nil {
-		t.Progress.OnDone(ctx, t, nil)
-	}
 	return nil
 }
 
-func (t *Task) applyBurstLimit(ctx context.Context) error {
-	if t.Config.BurstRate == "" || t.Config.LimitRate == "" {
+func (t *Task) applyTrafficShaping(ctx context.Context) error {
+	if t.Config.BurstRate == "" {
 		return nil
 	}
 
@@ -353,15 +304,11 @@ func (t *Task) applyBurstLimit(ctx context.Context) error {
 		return err
 	}
 
-	go func() {
-		timer := time.NewTimer(t.Config.BurstDuration)
-		defer timer.Stop()
-		select {
-		case <-ctx.Done():
-			return
-		case <-timer.C:
-		}
+	if t.Config.LimitRate == "" || t.Config.BurstDuration <= 0 {
+		return nil
+	}
 
+	time.AfterFunc(t.Config.BurstDuration, func() {
 		changeCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 		_, changeErr := t.Aria2Client.ChangeOption(changeCtx, t.GID(), aria2.Options{
@@ -370,13 +317,13 @@ func (t *Task) applyBurstLimit(ctx context.Context) error {
 		if changeErr != nil {
 			log.FromContext(ctx).Warnf("Failed to apply steady-state limit: %v", changeErr)
 		}
-	}()
+	})
 
 	return nil
 }
 
-// removeFileIfNeeded removes a file if RemoveAfterTransfer is enabled
-func (t *Task) removeFileIfNeeded(ctx context.Context, filePath string) {
+// cleanupLocalFile removes a file if RemoveAfterTransfer is enabled.
+func (t *Task) cleanupLocalFile(ctx context.Context, filePath string) {
 	if !config.C().Aria2.RemoveAfterTransferEnabled() {
 		return
 	}
@@ -394,26 +341,23 @@ func (t *Task) removeFileIfNeeded(ctx context.Context, filePath string) {
 	}
 }
 
-// cancelAria2Download cancels the aria2 download task
-func (t *Task) cancelAria2Download() {
-	logger := log.FromContext(t.ctx)
-	logger.Infof("Canceling aria2 download GID: %s", t.GID())
-
-	// Use a background context with timeout for cleanup
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	// Try to force remove the download
+// cancelAria2Task cancels the aria2 download task.
+func (t *Task) cancelAria2Task(ctx context.Context) {
 	if _, err := t.Aria2Client.ForceRemove(ctx, t.GID()); err != nil {
-		logger.Warnf("Failed to cancel aria2 download %s: %v", t.GID(), err)
-	} else {
-		logger.Infof("Successfully canceled aria2 download %s", t.GID())
+		log.FromContext(ctx).Warnf("Failed to cancel aria2 download %s: %v", t.GID(), err)
 	}
+}
 
-	// Also remove the download result to clean up
-	if _, err := t.Aria2Client.RemoveDownloadResult(ctx, t.GID()); err != nil {
-		logger.Debugf("Failed to remove download result for %s: %v", t.GID(), err)
+func (t *Task) reportProgress(ctx context.Context, status *aria2.Status) {
+	if t.Progress != nil {
+		t.Progress.OnProgress(ctx, t, status)
 	}
+	t.UpdateStats(
+		statusToInt64(status.CompletedLength),
+		statusToInt64(status.TotalLength),
+		statusToInt64(status.DownloadSpeed),
+		statusToInt(status.Connections),
+	)
 }
 
 func statusToInt64(value string) int64 {
@@ -432,19 +376,32 @@ func statusToInt(value string) int {
 	return parsed
 }
 
-func (t *Task) computeBackoff(attempt int) time.Duration {
+func (t *Task) calculateBackoff(attempt int) time.Duration {
 	base := t.Config.RetryBaseDelay
 	if base <= 0 {
 		base = time.Second
 	}
 
-	backoff := base * time.Duration(math.Pow(2, float64(attempt)))
-	if t.Config.RetryMaxDelay > 0 && backoff > t.Config.RetryMaxDelay {
-		backoff = t.Config.RetryMaxDelay
+	capDelay := t.Config.RetryMaxDelay
+	if capDelay <= 0 {
+		capDelay = 30 * time.Second
 	}
 
-	jitterMu.Lock()
-	jitter := jitterRand.Float64()*0.3 + 0.85
-	jitterMu.Unlock()
-	return time.Duration(float64(backoff) * jitter)
+	backoff := float64(base) * math.Pow(2, float64(attempt))
+	jitter := rand.Float64()*0.5 + 0.75
+	sleep := time.Duration(backoff * jitter)
+	if sleep > capDelay {
+		return capDelay
+	}
+	return sleep
+}
+
+func filterValidFiles(files []aria2.File) []aria2.File {
+	var valid []aria2.File
+	for _, file := range files {
+		if file.Selected == "true" && filepath.Ext(file.Path) != ".torrent" {
+			valid = append(valid, file)
+		}
+	}
+	return valid
 }
