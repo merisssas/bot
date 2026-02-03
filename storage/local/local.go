@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 
 	"github.com/charmbracelet/log"
 	"github.com/duke-git/lancet/v2/fileutil"
@@ -15,9 +16,12 @@ import (
 	"github.com/merisssas/Bot/pkg/storagetypes"
 )
 
+const bufferSize = 32 * 1024
+
 type Local struct {
 	config config.LocalStorageConfig
 	logger *log.Logger
+	mu     sync.RWMutex
 }
 
 func (l *Local) Init(ctx context.Context, cfg config.StorageConfig) error {
@@ -28,9 +32,12 @@ func (l *Local) Init(ctx context.Context, cfg config.StorageConfig) error {
 	if err := localConfig.Validate(); err != nil {
 		return err
 	}
+
+	l.mu.Lock()
+	defer l.mu.Unlock()
+
 	l.config = *localConfig
-	err := os.MkdirAll(localConfig.BasePath, os.ModePerm)
-	if err != nil {
+	if err := os.MkdirAll(localConfig.BasePath, 0755); err != nil {
 		return fmt.Errorf("failed to create local storage directory: %w", err)
 	}
 	l.logger = log.FromContext(ctx).WithPrefix(fmt.Sprintf("local[%s]", l.config.Name))
@@ -42,42 +49,64 @@ func (l *Local) Type() storenum.StorageType {
 }
 
 func (l *Local) Name() string {
+	l.mu.RLock()
+	defer l.mu.RUnlock()
 	return l.config.Name
 }
 
 func (l *Local) JoinStoragePath(path string) string {
+	l.mu.RLock()
+	defer l.mu.RUnlock()
 	return filepath.Join(l.config.BasePath, path)
 }
 
 func (l *Local) Save(ctx context.Context, r io.Reader, storagePath string) error {
-	l.logger.Infof("Saving file to %s", storagePath)
 	storagePath = l.JoinStoragePath(storagePath)
 
-	ext := filepath.Ext(storagePath)
-	base := strings.TrimSuffix(storagePath, ext)
-	candidate := storagePath
-	for i := 1; l.Exists(ctx, candidate); i++ {
-		candidate = fmt.Sprintf("%s_%d%s", base, i, ext)
+	finalPath, err := l.resolveUniquePath(ctx, storagePath)
+	if err != nil {
+		return err
 	}
 
-	absPath, err := filepath.Abs(candidate)
+	if err := os.MkdirAll(filepath.Dir(finalPath), 0755); err != nil {
+		return fmt.Errorf("failed to create directory: %w", err)
+	}
+
+	partPath := finalPath + ".part"
+	l.logger.Infof("Saving file to %s", partPath)
+
+	file, err := os.OpenFile(partPath, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0644)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to open partial file: %w", err)
 	}
-	if err := fileutil.CreateDir(filepath.Dir(absPath)); err != nil {
-		return err
-	}
-	file, err := os.Create(absPath)
+	defer func() {
+		_ = file.Close()
+	}()
+
+	buf := make([]byte, bufferSize)
+	written, err := io.CopyBuffer(file, r, buf)
 	if err != nil {
-		return err
+		return fmt.Errorf("write interrupted: %w", err)
 	}
-	defer file.Close()
-	_, err = io.Copy(file, r)
-	return err
+
+	if err := file.Sync(); err != nil {
+		return fmt.Errorf("failed to sync data to disk: %w", err)
+	}
+
+	if err := file.Close(); err != nil {
+		return fmt.Errorf("failed to close file: %w", err)
+	}
+
+	if err := os.Rename(partPath, finalPath); err != nil {
+		return fmt.Errorf("failed to finalize file (rename): %w", err)
+	}
+
+	l.logger.Infof("Save complete: %s (size: %d bytes)", finalPath, written)
+	return nil
 }
 
 func (l *Local) Exists(ctx context.Context, storagePath string) bool {
-	absPath, err := filepath.Abs(storagePath)
+	absPath, err := filepath.Abs(l.JoinStoragePath(storagePath))
 	if err != nil {
 		return false
 	}
@@ -130,4 +159,69 @@ func (l *Local) OpenFile(ctx context.Context, filePath string) (io.ReadCloser, i
 	}
 
 	return file, stat.Size(), nil
+}
+
+// SaveChunk writes a file chunk at a specific offset to support parallel downloads.
+func (l *Local) SaveChunk(ctx context.Context, r io.Reader, storagePath string, offset int64) error {
+	absPath := l.JoinStoragePath(storagePath)
+
+	file, err := os.OpenFile(absPath, os.O_WRONLY|os.O_CREATE, 0644)
+	if err != nil {
+		return fmt.Errorf("failed to open file for chunk write: %w", err)
+	}
+	defer file.Close()
+
+	if _, err := file.Seek(offset, io.SeekStart); err != nil {
+		return fmt.Errorf("failed to seek to offset %d: %w", offset, err)
+	}
+
+	if _, err := io.Copy(file, r); err != nil {
+		return fmt.Errorf("failed to write chunk: %w", err)
+	}
+
+	return nil
+}
+
+// PreAllocate reserves space for a file to reduce fragmentation.
+func (l *Local) PreAllocate(storagePath string, size int64) error {
+	absPath := l.JoinStoragePath(storagePath)
+	if err := os.MkdirAll(filepath.Dir(absPath), 0755); err != nil {
+		return fmt.Errorf("failed to create directory for preallocation: %w", err)
+	}
+
+	file, err := os.OpenFile(absPath, os.O_CREATE|os.O_RDWR, 0644)
+	if err != nil {
+		return fmt.Errorf("failed to create file for preallocation: %w", err)
+	}
+	defer file.Close()
+
+	if err := file.Truncate(size); err != nil {
+		return fmt.Errorf("failed to preallocate %d bytes: %w", size, err)
+	}
+
+	return nil
+}
+
+func (l *Local) resolveUniquePath(ctx context.Context, candidate string) (string, error) {
+	ext := filepath.Ext(candidate)
+	base := strings.TrimSuffix(candidate, ext)
+
+	if !fileutil.IsExist(candidate) {
+		return candidate, nil
+	}
+
+	for i := 1; i < 10000; i++ {
+		select {
+		case <-ctx.Done():
+			return "", ctx.Err()
+		default:
+		}
+
+		newPath := fmt.Sprintf("%s_%d%s", base, i, ext)
+		if !fileutil.IsExist(newPath) {
+			return newPath, nil
+		}
+	}
+
+	return "", fmt.Errorf("too many duplicate files, giving up")
 }
