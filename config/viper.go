@@ -380,19 +380,20 @@ func readConfigWithDefaults(v *viper.Viper, configIsRemote bool, configPath stri
 		return nil
 	}
 
-	if err := v.ReadInConfig(); err == nil {
-		return nil
-	} else if _, ok := err.(viper.ConfigFileNotFoundError); ok {
-		if err := v.SafeWriteConfigAs(configPath); err != nil {
-			if _, ok := err.(viper.ConfigFileAlreadyExistsError); !ok {
-				return fmt.Errorf("error saving default config: %w", err)
+	if err := v.ReadInConfig(); err != nil {
+		if _, ok := err.(viper.ConfigFileNotFoundError); ok {
+			if err := v.SafeWriteConfigAs(configPath); err != nil {
+				if _, ok := err.(viper.ConfigFileAlreadyExistsError); !ok {
+					return fmt.Errorf("error saving default config: %w", err)
+				}
 			}
+			return v.ReadInConfig()
 		}
-		return v.ReadInConfig()
-	}
 
-	logger.Warn("Error reading config file", "err", err)
-	return err
+		logger.Warn("Error reading config file", "err", err)
+		return err
+	}
+	return nil
 }
 
 func isRemoteConfig(path string) bool {
