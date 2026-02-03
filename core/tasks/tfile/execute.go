@@ -13,6 +13,7 @@ import (
 	"github.com/merisssas/Bot/common/utils/fsutil"
 	"github.com/merisssas/Bot/config"
 	"github.com/merisssas/Bot/pkg/enums/ctxkey"
+	tfilepkg "github.com/merisssas/Bot/pkg/tfile"
 )
 
 func (t *Task) Execute(ctx context.Context) (err error) {
@@ -105,21 +106,24 @@ func downloadWithRetry(ctx context.Context, logger *log.Logger, task *Task) (str
 		if err != nil {
 			return fmt.Errorf("failed to create cache file: %w", err)
 		}
-		defer func() {
-			if err := localFile.Close(); err != nil {
-				logger.Errorf("Failed to close cache file: %v", err)
-			}
-		}()
 
 		wrAt := newWriterAt(ctx, localFile, task.Progress, task)
 		_, err = tdler.NewDownloader(task.File).Parallel(ctx, wrAt)
 		if err != nil {
+			if isLocationNotFound(err) {
+				if refreshErr := tryRefreshFile(ctx, logger, task.File); refreshErr != nil {
+					logger.Warnf("Failed to refresh file location: %v", refreshErr)
+				}
+			}
 			if removeErr := localFile.CloseAndRemove(); removeErr != nil {
 				logger.Errorf("Failed to remove cache file: %v", removeErr)
 			}
 			return fmt.Errorf("failed to download file: %w", err)
 		}
 		if err := localFile.Close(); err != nil {
+			if removeErr := localFile.Remove(); removeErr != nil {
+				logger.Errorf("Failed to remove cache file: %v", removeErr)
+			}
 			return fmt.Errorf("failed to close cache file: %w", err)
 		}
 		if err := os.Remove(cachePath); err != nil && !os.IsNotExist(err) {
@@ -134,6 +138,20 @@ func downloadWithRetry(ctx context.Context, logger *log.Logger, task *Task) (str
 		return "", err
 	}
 	return cachePath, nil
+}
+
+func tryRefreshFile(ctx context.Context, logger *log.Logger, file tfilepkg.TGFile) error {
+	refreshable, ok := file.(tfilepkg.Refreshable)
+	if !ok {
+		return nil
+	}
+	if err := refreshable.Refresh(ctx); err != nil {
+		return err
+	}
+	if logger != nil {
+		logger.Warn("Refreshed file reference for retry")
+	}
+	return nil
 }
 
 func validateCacheFile(cachePath string, expectedSize int64) (bool, error) {

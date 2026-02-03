@@ -14,6 +14,7 @@ import (
 	"github.com/merisssas/Bot/database"
 	"github.com/merisssas/Bot/pkg/enums/fnamest"
 	"github.com/merisssas/Bot/pkg/tfile"
+	"github.com/merisssas/gotgproto/ext"
 )
 
 func IsSupported(media tg.MessageMediaClass) bool {
@@ -47,7 +48,7 @@ func (f FilenameTemplateData) ToMap() map[string]string {
 	}
 }
 
-func TfileOptions(ctx context.Context, user *database.User, message *tg.Message) []tfile.TGFileOption {
+func TfileOptions(ctx *ext.Context, user *database.User, message *tg.Message) []tfile.TGFileOption {
 	opts := make([]tfile.TGFileOption, 0)
 	var fnameOpt tfile.TGFileOption
 	switch user.FilenameStrategy {
@@ -77,7 +78,31 @@ func TfileOptions(ctx context.Context, user *database.User, message *tg.Message)
 	default:
 		fnameOpt = tfile.WithNameIfEmpty(tgutil.GenFileNameFromMessage(*message))
 	}
-	opts = append(opts, fnameOpt, tfile.WithMessage(message))
+	refresher := tfile.WithRefresher(func(refreshCtx context.Context) (tg.InputFileLocationClass, int64, string, error) {
+		if refreshCtx != nil {
+			if err := refreshCtx.Err(); err != nil {
+				return nil, 0, "", err
+			}
+		}
+		chatID := tgutil.ChatIdFromPeer(message.GetPeerID())
+		if chatID == 0 {
+			return nil, 0, "", fmt.Errorf("missing chat ID for message %d", message.GetID())
+		}
+		freshMsg, err := tgutil.GetMessageByID(ctx, chatID, message.GetID())
+		if err != nil {
+			return nil, 0, "", err
+		}
+		media := freshMsg.GetMedia()
+		if media == nil {
+			return nil, 0, "", fmt.Errorf("message %d has no media", freshMsg.GetID())
+		}
+		freshFile, err := tfile.FromMediaMessage(media, ctx.Raw, freshMsg, tfile.WithNameIfEmpty(tgutil.GenFileNameFromMessage(*freshMsg)))
+		if err != nil {
+			return nil, 0, "", err
+		}
+		return freshFile.Location(), freshFile.Size(), freshFile.Name(), nil
+	})
+	opts = append(opts, fnameOpt, tfile.WithMessage(message), refresher)
 	return opts
 }
 
