@@ -32,6 +32,9 @@ type TaskConfig struct {
 	ThrottledRate string
 
 	OverwritePolicy   OverwritePolicy
+	FormatSort        string
+	RecodeVideo       string
+	MergeOutputFormat string
 	DryRun            bool
 	ChecksumAlgorithm string
 	ExpectedChecksum  string
@@ -70,6 +73,24 @@ func WithDryRun(enabled bool) Option {
 func WithOverwritePolicy(policy OverwritePolicy) Option {
 	return func(t *Task) {
 		t.Config.OverwritePolicy = policy
+	}
+}
+
+func WithFormatSort(formatSort string) Option {
+	return func(t *Task) {
+		t.Config.FormatSort = formatSort
+	}
+}
+
+func WithRecodeVideo(recode string) Option {
+	return func(t *Task) {
+		t.Config.RecodeVideo = recode
+	}
+}
+
+func WithMergeOutputFormat(format string) Option {
+	return func(t *Task) {
+		t.Config.MergeOutputFormat = format
 	}
 }
 
@@ -119,6 +140,9 @@ func defaultTaskConfig() TaskConfig {
 		LimitRate:             cfg.Ytdlp.LimitRate,
 		ThrottledRate:         cfg.Ytdlp.ThrottledRate,
 		OverwritePolicy:       parseOverwritePolicy(cfg.Ytdlp.OverwritePolicy),
+		FormatSort:            cfg.Ytdlp.FormatSort,
+		RecodeVideo:           cfg.Ytdlp.RecodeVideo,
+		MergeOutputFormat:     cfg.Ytdlp.MergeOutputFormat,
 		DryRun:                cfg.Ytdlp.DryRun,
 		ChecksumAlgorithm:     cfg.Ytdlp.ChecksumAlgorithm,
 		ExpectedChecksum:      cfg.Ytdlp.ExpectedChecksum,

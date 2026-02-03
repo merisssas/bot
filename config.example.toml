@@ -79,6 +79,12 @@ limit_rate = ""
 throttled_rate = ""
 # overwrite | rename | skip
 overwrite_policy = "rename"
+# Format sorting preferences for yt-dlp (comma-separated).
+format_sort = "res:1080,vcodec:h264,acodec:aac"
+# Optional recode target (empty disables recode).
+recode_video = "mp4"
+# Optional merge output format (empty disables merge override).
+merge_output_format = "mp4"
 # Dry-run mode to validate metadata without downloading files.
 dry_run = false
 # Checksum verification (optional).

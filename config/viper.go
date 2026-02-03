@@ -84,6 +84,9 @@ type ytdlpConfig struct {
 	LimitRate             string   `toml:"limit_rate" mapstructure:"limit_rate" json:"limit_rate"`
 	ThrottledRate         string   `toml:"throttled_rate" mapstructure:"throttled_rate" json:"throttled_rate"`
 	OverwritePolicy       string   `toml:"overwrite_policy" mapstructure:"overwrite_policy" json:"overwrite_policy"`
+	FormatSort            string   `toml:"format_sort" mapstructure:"format_sort" json:"format_sort"`
+	RecodeVideo           string   `toml:"recode_video" mapstructure:"recode_video" json:"recode_video"`
+	MergeOutputFormat     string   `toml:"merge_output_format" mapstructure:"merge_output_format" json:"merge_output_format"`
 	DryRun                bool     `toml:"dry_run" mapstructure:"dry_run" json:"dry_run"`
 	ChecksumAlgorithm     string   `toml:"checksum_algorithm" mapstructure:"checksum_algorithm" json:"checksum_algorithm"`
 	ExpectedChecksum      string   `toml:"expected_checksum" mapstructure:"expected_checksum" json:"expected_checksum"`
@@ -198,6 +201,9 @@ func Init(ctx context.Context, configFile ...string) error {
 		"ytdlp.fragment_concurrency": 16,
 		"ytdlp.enable_resume":        true,
 		"ytdlp.overwrite_policy":     "rename",
+		"ytdlp.format_sort":          "res:1080,vcodec:h264,acodec:aac",
+		"ytdlp.recode_video":         "mp4",
+		"ytdlp.merge_output_format":  "mp4",
 		"ytdlp.dry_run":              false,
 		"ytdlp.log_level":            "info",
 		"ytdlp.user_agent":           "Mozilla/5.0 (Windows NT 10.0; Win64; x64) UltimateDownloader/2.0",

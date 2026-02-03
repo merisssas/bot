@@ -212,10 +212,17 @@ func (t *Task) downloadSingle(ctx context.Context, logger *log.Logger, tempDir, 
 		EmbedMetadata().
 		EmbedThumbnail().
 		ResizeBuffer().
-		HLSUseMPEGTS().
-		FormatSort("res:1080,vcodec:h264,acodec:aac").
-		RecodeVideo("mp4").
-		MergeOutputFormat("mp4")
+		HLSUseMPEGTS()
+
+	if t.Config.FormatSort != "" {
+		cmd.FormatSort(t.Config.FormatSort)
+	}
+	if t.Config.RecodeVideo != "" {
+		cmd.RecodeVideo(t.Config.RecodeVideo)
+	}
+	if t.Config.MergeOutputFormat != "" {
+		cmd.MergeOutputFormat(t.Config.MergeOutputFormat)
+	}
 
 	if t.Config.EnableResume {
 		cmd.Continue()

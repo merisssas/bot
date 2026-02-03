@@ -53,6 +53,9 @@ Control flags diawali dengan `--sa-` (atau `--Teleload-`) dan **tidak** diterusk
 | `--sa-fragments` | `--sa-fragments=16` | Concurrent fragments HLS/DASH. |
 | `--sa-retries` | `--sa-retries=5` | Retry per URL. |
 | `--sa-priority` | `--sa-priority=2` | Priority display & queue order hint. |
+| `--sa-format-sort` | `--sa-format-sort=res:1080,vcodec:h264,acodec:aac` | Override urutan format selection. |
+| `--sa-recode` | `--sa-recode=mp4` | Recode video output (opsional). |
+| `--sa-merge-format` | `--sa-merge-format=mp4` | Override format merge output. |
 
 Contoh:
 
@@ -74,6 +77,9 @@ external_downloader_args = []
 limit_rate = ""
 throttled_rate = ""
 overwrite_policy = "rename" # overwrite | rename | skip
+format_sort = "res:1080,vcodec:h264,acodec:aac"
+recode_video = "mp4"
+merge_output_format = "mp4"
 dry_run = false
 checksum_algorithm = ""
 expected_checksum = ""

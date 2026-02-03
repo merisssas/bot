@@ -36,6 +36,12 @@ func applyControlFlags(cfg TaskConfig, flags []string) (TaskConfig, []string, er
 			}
 		case "sa-overwrite", "Teleload-overwrite":
 			cfg.OverwritePolicy = parseOverwritePolicy(value)
+		case "sa-format-sort", "Teleload-format-sort":
+			cfg.FormatSort = value
+		case "sa-recode", "Teleload-recode":
+			cfg.RecodeVideo = value
+		case "sa-merge-format", "Teleload-merge-format":
+			cfg.MergeOutputFormat = value
 		case "sa-checksum", "Teleload-checksum":
 			algo, expected := splitChecksum(value)
 			cfg.ChecksumAlgorithm = algo
