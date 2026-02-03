@@ -32,11 +32,8 @@ type TaskConfig struct {
 	Split               int               `json:"split"`
 	MaxConnPerServer    int               `json:"max_conn_per_server"`
 	MinSplitSize        string            `json:"min_split_size,omitempty"`
-	OverwritePolicy     string            `json:"overwrite_policy,omitempty"`
+	OverwritePolicy     OverwritePolicy   `json:"overwrite_policy,omitempty"`
 	DryRun              bool              `json:"dry_run"`
-	ChecksumAlgorithm   string            `json:"checksum_algorithm,omitempty"`
-	ExpectedChecksum    string            `json:"expected_checksum,omitempty"`
-	RequireChecksum     bool              `json:"require_checksum,omitempty"`
 	EnableIntegrityScan bool              `json:"enable_integrity_scan,omitempty"`
 }
 

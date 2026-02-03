@@ -145,9 +145,11 @@ func applyHeaders(taskConfig TaskConfig, req *http.Request) {
 		req.Header.Set("User-Agent", taskConfig.UserAgent)
 	}
 	for key, value := range taskConfig.CustomHeaders {
-		if strings.TrimSpace(key) == "" {
+		safeKey := http.CanonicalHeaderKey(strings.TrimSpace(key))
+		safeValue := strings.TrimSpace(value)
+		if safeKey == "" || safeValue == "" {
 			continue
 		}
-		req.Header.Set(key, value)
+		req.Header.Set(safeKey, safeValue)
 	}
 }

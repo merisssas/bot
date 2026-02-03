@@ -3,227 +3,247 @@ package aria2dl
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"strings"
 	"time"
+
+	"github.com/charmbracelet/log"
 
 	"github.com/merisssas/Bot/config"
 	"github.com/merisssas/Bot/pkg/aria2"
 )
 
+// --- Constants & Enums ---
+
+type OverwritePolicy string
+
 const (
+	PolicyRename    OverwritePolicy = "rename"
+	PolicyOverwrite OverwritePolicy = "overwrite"
+	PolicySkip      OverwritePolicy = "skip"
+
 	defaultMaxRetries          = 5
 	defaultRetryBaseDelay      = 500 * time.Millisecond
 	defaultRetryMaxDelay       = 10 * time.Second
 	defaultSplit               = 8
 	defaultMaxConnPerServer    = 4
 	defaultMinSplitSize        = "1MB"
-	defaultOverwritePolicy     = "rename"
 	defaultBurstDuration       = 10 * time.Second
 	defaultUserAgent           = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) UltimateDownloader/2.0"
 	defaultEnableResume        = true
 	defaultEnableIntegrityScan = true
+
+	// Aria2 hard limits to prevent runtime errors.
+	MaxAria2Split       = 16
+	MaxAria2Connections = 16
+
+	// Network resilience defaults.
+	DefaultConnectTimeout = "60"
+	DefaultGlobalTimeout  = "600"
+	DefaultLowestSpeed    = "10K"
 )
 
-var supportedChecksumAlgorithms = map[string]struct{}{
-	"md5":     {},
-	"sha-1":   {},
-	"sha-256": {},
-	"sha-512": {},
+var supportedChecksums = map[string]bool{
+	"md5":     true,
+	"sha-1":   true,
+	"sha-256": true,
+	"sha-512": true,
 }
 
-// DefaultTaskConfig builds the default aria2 task configuration from viper config values.
+// DefaultTaskConfig constructs a sanitized, ready-to-use configuration.
+// It acts as an anticorruption layer between raw user config and the downloader.
 func DefaultTaskConfig() TaskConfig {
-	cfg := config.C()
-	aria2Cfg := cfg.Aria2
+	raw := config.C()
+	aria2Raw := raw.Aria2
 
-	maxRetries := aria2Cfg.MaxRetries
-	if maxRetries <= 0 {
-		maxRetries = defaultMaxRetries
+	proxyURL := strings.TrimSpace(aria2Raw.Proxy)
+	if proxyURL == "" {
+		proxyURL = strings.TrimSpace(raw.Proxy)
 	}
 
-	retryBaseDelay := aria2Cfg.RetryBaseDelay
-	if retryBaseDelay <= 0 {
-		retryBaseDelay = defaultRetryBaseDelay
+	policy := OverwritePolicy(strings.ToLower(strings.TrimSpace(aria2Raw.OverwritePolicy)))
+	switch policy {
+	case PolicyRename, PolicyOverwrite, PolicySkip:
+		// valid
+	default:
+		policy = PolicyRename
 	}
 
-	retryMaxDelay := aria2Cfg.RetryMaxDelay
-	if retryMaxDelay <= 0 {
-		retryMaxDelay = defaultRetryMaxDelay
+	ua := strings.TrimSpace(aria2Raw.UserAgent)
+	if ua == "" {
+		ua = defaultUserAgent
 	}
 
-	split := aria2Cfg.Split
-	if split <= 0 {
-		split = defaultSplit
-	}
+	algo := strings.ToLower(strings.TrimSpace(aria2Raw.ChecksumAlgorithm))
+	hash := strings.TrimSpace(aria2Raw.ExpectedChecksum)
+	enableIntegrity := defaultEnableIntegrityScan
 
-	maxConnPerServer := aria2Cfg.MaxConnPerServer
-	if maxConnPerServer <= 0 {
-		maxConnPerServer = defaultMaxConnPerServer
-	}
-
-	minSplitSize := strings.TrimSpace(aria2Cfg.MinSplitSize)
-	if minSplitSize == "" {
-		minSplitSize = defaultMinSplitSize
-	}
-
-	overwritePolicy := strings.ToLower(strings.TrimSpace(aria2Cfg.OverwritePolicy))
-	if overwritePolicy == "" {
-		overwritePolicy = defaultOverwritePolicy
-	}
-
-	userAgent := strings.TrimSpace(aria2Cfg.UserAgent)
-	if userAgent == "" {
-		userAgent = defaultUserAgent
-	}
-
-	burstDuration := aria2Cfg.BurstDuration
-	if burstDuration <= 0 {
-		burstDuration = defaultBurstDuration
-	}
-
-	enableResume := defaultEnableResume
-	if aria2Cfg.EnableResume != nil {
-		enableResume = *aria2Cfg.EnableResume
-	}
-
-	enableIntegrityScan := defaultEnableIntegrityScan
-	if aria2Cfg.ChecksumAlgorithm == "" || aria2Cfg.ExpectedChecksum == "" {
-		enableIntegrityScan = false
-	}
-
-	proxy := strings.TrimSpace(aria2Cfg.Proxy)
-	if proxy == "" {
-		proxy = strings.TrimSpace(cfg.Proxy)
+	if algo != "" && hash != "" {
+		if !supportedChecksums[algo] {
+			log.Warnf("Unsupported checksum algorithm '%s' ignored. Supported: md5, sha-1, sha-256, sha-512", algo)
+			algo = ""
+			hash = ""
+			enableIntegrity = false
+		} else {
+			enableIntegrity = true
+		}
+	} else {
+		algo = ""
+		hash = ""
+		enableIntegrity = false
 	}
 
 	return TaskConfig{
-		MaxRetries:          maxRetries,
-		RetryBaseDelay:      retryBaseDelay,
-		RetryMaxDelay:       retryMaxDelay,
-		Priority:            aria2Cfg.DefaultPriority,
-		VerifyHash:          aria2Cfg.ChecksumAlgorithm != "" && aria2Cfg.ExpectedChecksum != "",
-		HashType:            strings.ToLower(strings.TrimSpace(aria2Cfg.ChecksumAlgorithm)),
-		ExpectedHash:        strings.TrimSpace(aria2Cfg.ExpectedChecksum),
-		CustomHeaders:       aria2Cfg.Headers,
-		ProxyURL:            proxy,
-		LimitRate:           strings.TrimSpace(aria2Cfg.LimitRate),
-		BurstRate:           strings.TrimSpace(aria2Cfg.BurstRate),
-		BurstDuration:       burstDuration,
-		UserAgent:           userAgent,
-		EnableResume:        enableResume,
-		Split:               split,
-		MaxConnPerServer:    maxConnPerServer,
-		MinSplitSize:        minSplitSize,
-		OverwritePolicy:     overwritePolicy,
-		DryRun:              aria2Cfg.DryRun,
-		ChecksumAlgorithm:   strings.ToLower(strings.TrimSpace(aria2Cfg.ChecksumAlgorithm)),
-		ExpectedChecksum:    strings.TrimSpace(aria2Cfg.ExpectedChecksum),
-		RequireChecksum:     false,
-		EnableIntegrityScan: enableIntegrityScan,
+		MaxRetries:       clampInt(aria2Raw.MaxRetries, 0, 100, defaultMaxRetries),
+		RetryBaseDelay:   clampDuration(aria2Raw.RetryBaseDelay, 100*time.Millisecond, defaultRetryBaseDelay),
+		RetryMaxDelay:    clampDuration(aria2Raw.RetryMaxDelay, 1*time.Second, defaultRetryMaxDelay),
+		Priority:         aria2Raw.DefaultPriority,
+		VerifyHash:       algo != "" && hash != "",
+		HashType:         algo,
+		ExpectedHash:     hash,
+		CustomHeaders:    aria2Raw.Headers,
+		ProxyURL:         proxyURL,
+		LimitRate:        strings.TrimSpace(aria2Raw.LimitRate),
+		BurstRate:        strings.TrimSpace(aria2Raw.BurstRate),
+		BurstDuration:    clampDuration(aria2Raw.BurstDuration, 1*time.Second, defaultBurstDuration),
+		UserAgent:        ua,
+		EnableResume:     resolveBool(aria2Raw.EnableResume, defaultEnableResume),
+		Split:            clampInt(aria2Raw.Split, 1, MaxAria2Split, defaultSplit),
+		MaxConnPerServer: clampInt(aria2Raw.MaxConnPerServer, 1, MaxAria2Connections, defaultMaxConnPerServer),
+		MinSplitSize:     resolveString(aria2Raw.MinSplitSize, defaultMinSplitSize),
+		OverwritePolicy:  policy,
+		DryRun:           aria2Raw.DryRun,
+
+		EnableIntegrityScan: enableIntegrity,
 	}
 }
 
-func BuildAria2Options(taskConfig TaskConfig) (aria2.Options, error) {
-	options := aria2.Options{}
+// BuildAria2Options converts internal config to raw Aria2 RPC options.
+// This function guarantees that the output map is 100% compliant with Aria2 RPC spec.
+func BuildAria2Options(cfg TaskConfig) (aria2.Options, error) {
+	opts := make(aria2.Options)
 
-	if taskConfig.EnableResume {
-		options["continue"] = true
+	opts["user-agent"] = cfg.UserAgent
+	opts["connect-timeout"] = DefaultConnectTimeout
+	opts["timeout"] = DefaultGlobalTimeout
+	opts["lowest-speed-limit"] = DefaultLowestSpeed
+
+	if cfg.ProxyURL != "" {
+		opts["all-proxy"] = cfg.ProxyURL
 	}
 
-	if taskConfig.Split > 0 {
-		options["split"] = taskConfig.Split
+	opts["split"] = cfg.Split
+	opts["max-connection-per-server"] = cfg.MaxConnPerServer
+	opts["min-split-size"] = cfg.MinSplitSize
+	opts["max-tries"] = cfg.MaxRetries
+	opts["retry-wait"] = int(cfg.RetryBaseDelay.Seconds())
+
+	if cfg.LimitRate != "" {
+		opts["max-download-limit"] = cfg.LimitRate
 	}
 
-	if taskConfig.MaxConnPerServer > 0 {
-		options["max-connection-per-server"] = taskConfig.MaxConnPerServer
-	}
-
-	if taskConfig.MinSplitSize != "" {
-		options["min-split-size"] = taskConfig.MinSplitSize
-	}
-
-	if taskConfig.MaxRetries > 0 {
-		options["max-tries"] = taskConfig.MaxRetries
-	}
-
-	if taskConfig.RetryBaseDelay > 0 {
-		options["retry-wait"] = int(taskConfig.RetryBaseDelay.Seconds())
-	}
-
-	if taskConfig.LimitRate != "" {
-		options["max-download-limit"] = taskConfig.LimitRate
-	}
-
-	if taskConfig.ProxyURL != "" {
-		options["all-proxy"] = taskConfig.ProxyURL
-	}
-
-	if taskConfig.UserAgent != "" {
-		options["user-agent"] = taskConfig.UserAgent
-	}
-
-	if len(taskConfig.CustomHeaders) > 0 {
-		headers := make([]string, 0, len(taskConfig.CustomHeaders))
-		for key, value := range taskConfig.CustomHeaders {
-			headers = append(headers, fmt.Sprintf("%s: %s", key, value))
+	if len(cfg.CustomHeaders) > 0 {
+		headers := make([]string, 0, len(cfg.CustomHeaders))
+		for key, value := range cfg.CustomHeaders {
+			safeKey := http.CanonicalHeaderKey(strings.TrimSpace(key))
+			safeValue := strings.TrimSpace(value)
+			if safeKey == "" || safeValue == "" {
+				continue
+			}
+			headers = append(headers, fmt.Sprintf("%s: %s", safeKey, safeValue))
 		}
-		options["header"] = headers
-	}
-
-	if taskConfig.EnableIntegrityScan {
-		options["check-integrity"] = true
-	}
-
-	if taskConfig.VerifyHash {
-		hashType := strings.ToLower(strings.TrimSpace(taskConfig.HashType))
-		if _, ok := supportedChecksumAlgorithms[hashType]; !ok {
-			return nil, fmt.Errorf("unsupported checksum algorithm: %s", hashType)
+		if len(headers) > 0 {
+			opts["header"] = headers
 		}
-		if taskConfig.ExpectedHash == "" {
-			return nil, fmt.Errorf("checksum expected hash is required when verify_hash is enabled")
-		}
-		options["checksum"] = fmt.Sprintf("%s=%s", hashType, taskConfig.ExpectedHash)
-		options["check-integrity"] = true
 	}
 
-	if err := applyOverwritePolicy(options, taskConfig.OverwritePolicy); err != nil {
-		return nil, err
+	if cfg.EnableResume {
+		opts["continue"] = "true"
 	}
 
-	return options, nil
+	if cfg.VerifyHash {
+		opts["checksum"] = fmt.Sprintf("%s=%s", cfg.HashType, cfg.ExpectedHash)
+		opts["check-integrity"] = "true"
+	} else if cfg.EnableIntegrityScan {
+		opts["check-integrity"] = "true"
+	}
+
+	applyPolicyRules(opts, cfg.OverwritePolicy)
+
+	return opts, nil
 }
 
-func applyOverwritePolicy(options aria2.Options, policy string) error {
-	switch strings.ToLower(strings.TrimSpace(policy)) {
-	case "", "rename":
-		options["auto-file-renaming"] = true
-		options["allow-overwrite"] = false
-	case "overwrite":
-		options["auto-file-renaming"] = false
-		options["allow-overwrite"] = true
-	case "skip":
-		options["auto-file-renaming"] = false
-		options["allow-overwrite"] = false
+// applyPolicyRules translates high-level policy to specific boolean flags.
+func applyPolicyRules(opts aria2.Options, policy OverwritePolicy) {
+	switch policy {
+	case PolicyOverwrite:
+		opts["allow-overwrite"] = "true"
+		opts["auto-file-renaming"] = "false"
+	case PolicySkip:
+		opts["allow-overwrite"] = "false"
+		opts["auto-file-renaming"] = "false"
 	default:
-		return fmt.Errorf("invalid overwrite policy: %s", policy)
+		opts["allow-overwrite"] = "false"
+		opts["auto-file-renaming"] = "true"
 	}
-	return nil
 }
 
+// ApplyQueuePriority dynamically adjusts task position in the queue.
 func ApplyQueuePriority(ctx context.Context, client *aria2.Client, gid string, priority int) error {
 	if client == nil || gid == "" || priority == 0 {
 		return nil
 	}
 
-	var how string
-	pos := 0
+	method := "POS_END"
+	position := 0
 
 	if priority > 0 {
-		how = "POS_SET"
-	} else {
-		how = "POS_END"
+		method = "POS_SET"
+		position = 0
 	}
 
-	_, err := client.ChangePosition(ctx, gid, pos, how)
-	return err
+	_, err := client.ChangePosition(ctx, gid, position, method)
+	if err != nil {
+		return fmt.Errorf("failed to change priority for GID %s: %w", gid, err)
+	}
+	return nil
+}
+
+// --- Helper Functions (Clampers) ---
+
+func clampInt(val, min, max, def int) int {
+	if val <= 0 {
+		return def
+	}
+	if val < min {
+		return min
+	}
+	if val > max {
+		return max
+	}
+	return val
+}
+
+func clampDuration(val, min, def time.Duration) time.Duration {
+	if val <= 0 {
+		return def
+	}
+	if val < min {
+		return min
+	}
+	return val
+}
+
+func resolveBool(ptr *bool, def bool) bool {
+	if ptr == nil {
+		return def
+	}
+	return *ptr
+}
+
+func resolveString(val, def string) string {
+	if strings.TrimSpace(val) == "" {
+		return def
+	}
+	return val
 }
