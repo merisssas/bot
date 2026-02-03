@@ -131,17 +131,12 @@ func (t *Task) downloadQueue(ctx context.Context, logger *log.Logger, taskDir st
 
 	items := t.buildQueueItems()
 
-	type job struct {
-		index int
-		url   string
-	}
-
 	type result struct {
 		files []string
 		err   error
 	}
 
-	jobs := make(chan job)
+	jobs := make(chan queueItem)
 	results := make(chan result)
 
 	var wg sync.WaitGroup
@@ -171,7 +166,7 @@ func (t *Task) downloadQueue(ctx context.Context, logger *log.Logger, taskDir st
 
 	go func() {
 		for _, item := range items {
-			jobs <- job{index: item.index, url: item.url}
+			jobs <- item
 		}
 		close(jobs)
 	}()
