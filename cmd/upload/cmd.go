@@ -7,6 +7,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"time"
 
 	"github.com/charmbracelet/log"
 	"github.com/merisssas/Bot/client/bot"
@@ -63,7 +64,14 @@ func Upload(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to load config: %w", err)
 	}
 	i18n.Init(config.C().Lang)
-	cache.Init()
+	if err := cache.Init(cache.Config{
+		NumCounters: config.C().Cache.NumCounters,
+		MaxCost:     config.C().Cache.MaxCost,
+		BufferItems: 64,
+		DefaultTTL:  time.Duration(config.C().Cache.TTL) * time.Second,
+	}, log); err != nil {
+		return fmt.Errorf("failed to init cache: %w", err)
+	}
 	database.Init(ctx)
 
 	stor, err := storage.GetStorageByName(ctx, storname)

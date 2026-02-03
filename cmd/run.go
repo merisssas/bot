@@ -55,8 +55,15 @@ func initAll(ctx context.Context, cmd *cobra.Command) (<-chan struct{}, error) {
 	if err := config.Init(ctx, configFile); err != nil {
 		return nil, fmt.Errorf("failed to load config: %w", err)
 	}
-	cache.Init()
 	logger := log.FromContext(ctx)
+	if err := cache.Init(cache.Config{
+		NumCounters: config.C().Cache.NumCounters,
+		MaxCost:     config.C().Cache.MaxCost,
+		BufferItems: 64,
+		DefaultTTL:  time.Duration(config.C().Cache.TTL) * time.Second,
+	}, logger); err != nil {
+		return nil, fmt.Errorf("failed to init cache: %w", err)
+	}
 	i18n.Init(config.C().Lang)
 	logger.Info("Initializing...")
 	database.Init(ctx)

@@ -59,9 +59,8 @@ func BuildAddSelectStorageKeyboard(stors []storage.Storage, adddata tcbdata.Add)
 			TransferFiles:          adddata.TransferFiles,
 		}
 		dataid := xid.New().String()
-		err := cache.Set(dataid, data)
-		if err != nil {
-			return nil, err
+		if ok := cache.Set(dataid, data); !ok {
+			return nil, fmt.Errorf("failed to set cache data: %s", dataid)
 		}
 		buttons = append(buttons, &tg.KeyboardButtonCallback{
 			Text: storage.Name(),
@@ -119,9 +118,8 @@ func BuildSetDefaultStorageMarkup(
 			StorageName: storage.Name(),
 		}
 		dataid := xid.New().String()
-		err := cache.Set(dataid, data)
-		if err != nil {
-			return nil, err
+		if ok := cache.Set(dataid, data); !ok {
+			return nil, fmt.Errorf("failed to set cache data: %s", dataid)
 		}
 		buttons = append(buttons, &tg.KeyboardButtonCallback{
 			Text: storage.Name(),
@@ -147,9 +145,8 @@ func BuildSetDefaultDirMarkup(ctx context.Context,
 			StorageName: seletedStorage,
 			DirID:       dir.ID,
 		}
-		err := cache.Set(dataid, data)
-		if err != nil {
-			return nil, err
+		if ok := cache.Set(dataid, data); !ok {
+			return nil, fmt.Errorf("failed to set cache data: %s", dataid)
 		}
 		buttons = append(buttons, &tg.KeyboardButtonCallback{
 			Text: dir.Path,
@@ -180,9 +177,8 @@ func BuildSetDirMarkupForAdd(dirs []database.Dir, dataid string) (*tg.ReplyInlin
 		dirData := data
 		dirData.DirID = dir.ID
 		dirData.SettedDir = true
-		err := cache.Set(dirDataId, dirData)
-		if err != nil {
-			return nil, fmt.Errorf("failed to set directory data in cache: %w", err)
+		if ok := cache.Set(dirDataId, dirData); !ok {
+			return nil, fmt.Errorf("failed to set directory data in cache: %s", dirDataId)
 		}
 		buttons = append(buttons, &tg.KeyboardButtonCallback{
 			Text: dir.Path,
@@ -193,9 +189,8 @@ func BuildSetDirMarkupForAdd(dirs []database.Dir, dataid string) (*tg.ReplyInlin
 	dirDefaultData := data
 	dirDefaultData.DirID = 0
 	dirDefaultData.SettedDir = true
-	err := cache.Set(dirDefaultDataId, dirDefaultData)
-	if err != nil {
-		return nil, fmt.Errorf("failed to set default directory data in cache: %w", err)
+	if ok := cache.Set(dirDefaultDataId, dirDefaultData); !ok {
+		return nil, fmt.Errorf("failed to set default directory data in cache: %s", dirDefaultDataId)
 	}
 	buttons = append(buttons, &tg.KeyboardButtonCallback{
 		Text: i18n.T(i18nk.BotMsgDirButtonDefault, nil),
