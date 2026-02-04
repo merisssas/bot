@@ -2,7 +2,9 @@ package aria2dl
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -15,26 +17,54 @@ import (
 var _ core.Executable = (*Task)(nil)
 
 type TaskConfig struct {
-	MaxRetries          int               `json:"max_retries"`
-	RetryBaseDelay      time.Duration     `json:"retry_base_delay"`
-	RetryMaxDelay       time.Duration     `json:"retry_max_delay"`
-	Priority            int               `json:"priority"`
-	VerifyHash          bool              `json:"verify_hash"`
-	HashType            string            `json:"hash_type,omitempty"`
-	ExpectedHash        string            `json:"expected_hash,omitempty"`
-	CustomHeaders       map[string]string `json:"custom_headers,omitempty"`
-	ProxyURL            string            `json:"proxy_url,omitempty"`
-	LimitRate           string            `json:"limit_rate,omitempty"`
-	BurstRate           string            `json:"burst_rate,omitempty"`
-	BurstDuration       time.Duration     `json:"burst_duration,omitempty"`
-	UserAgent           string            `json:"user_agent,omitempty"`
-	EnableResume        bool              `json:"enable_resume"`
-	Split               int               `json:"split"`
-	MaxConnPerServer    int               `json:"max_conn_per_server"`
-	MinSplitSize        string            `json:"min_split_size,omitempty"`
-	OverwritePolicy     OverwritePolicy   `json:"overwrite_policy,omitempty"`
-	DryRun              bool              `json:"dry_run"`
-	EnableIntegrityScan bool              `json:"enable_integrity_scan,omitempty"`
+	MaxRetries     int           `json:"max_retries"`
+	RetryBaseDelay time.Duration `json:"retry_base_delay"`
+	RetryMaxDelay  time.Duration `json:"retry_max_delay"`
+	Priority       int           `json:"priority"`
+
+	VerifyHash          bool   `json:"verify_hash"`
+	HashType            string `json:"hash_type,omitempty"`
+	ExpectedHash        string `json:"expected_hash,omitempty"`
+	EnableIntegrityScan bool   `json:"enable_integrity_scan,omitempty"`
+
+	CustomHeaders map[string]string `json:"custom_headers,omitempty"`
+	ProxyURL      string            `json:"proxy_url,omitempty"`
+	LimitRate     string            `json:"limit_rate,omitempty"`
+	BurstRate     string            `json:"burst_rate,omitempty"`
+	BurstDuration time.Duration     `json:"burst_duration,omitempty"`
+	UserAgent     string            `json:"user_agent,omitempty"`
+
+	EnableResume     bool            `json:"enable_resume"`
+	Split            int             `json:"split"`
+	MaxConnPerServer int             `json:"max_conn_per_server"`
+	MinSplitSize     string          `json:"min_split_size,omitempty"`
+	OverwritePolicy  OverwritePolicy `json:"overwrite_policy,omitempty"`
+	DryRun           bool            `json:"dry_run"`
+}
+
+func (c TaskConfig) MarshalJSON() ([]byte, error) {
+	type Alias TaskConfig
+	aux := &struct {
+		CustomHeaders map[string]string `json:"custom_headers,omitempty"`
+		Alias
+	}{
+		Alias: (Alias)(c),
+	}
+
+	if len(c.CustomHeaders) > 0 {
+		redacted := make(map[string]string, len(c.CustomHeaders))
+		for key, value := range c.CustomHeaders {
+			lowerKey := strings.ToLower(key)
+			if lowerKey == "authorization" || lowerKey == "cookie" || strings.Contains(lowerKey, "token") {
+				redacted[key] = "████████"
+				continue
+			}
+			redacted[key] = value
+		}
+		aux.CustomHeaders = redacted
+	}
+
+	return json.Marshal(aux)
 }
 
 type TaskStats struct {
@@ -56,8 +86,9 @@ type Task struct {
 	ID  string `json:"id"`
 	gid string
 
-	ctx    context.Context    `json:"-"`
-	cancel context.CancelFunc `json:"-"`
+	ctx        context.Context    `json:"-"`
+	cancel     context.CancelFunc `json:"-"`
+	cancelOnce sync.Once          `json:"-"`
 
 	URIs        []string        `json:"uris"`
 	Aria2Client *aria2.Client   `json:"-"`
@@ -121,18 +152,27 @@ func (t *Task) Title() string {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
 
-	prioLabels := []string{"LOW", "NRM", "HIGH", "CRIT"}
-	prioStr := "NRM"
-	if t.Config.Priority >= 0 && t.Config.Priority < len(prioLabels) {
-		prioStr = prioLabels[t.Config.Priority]
-	}
-
-	proxyIcon := ""
+	indicators := make([]string, 0, 2)
 	if t.Config.ProxyURL != "" {
-		proxyIcon = "🛡️ "
+		indicators = append(indicators, "🛡️")
+	}
+	if t.Config.DryRun {
+		indicators = append(indicators, "🧪")
 	}
 
-	return fmt.Sprintf("[%s%s][%s] %s -> %s", proxyIcon, t.Type(), prioStr, t.gid, t.Storage.Name())
+	prioStr := "NRM"
+	if t.Config.Priority > 0 {
+		prioStr = "HIGH"
+	} else if t.Config.Priority < 0 {
+		prioStr = "LOW"
+	}
+
+	prefix := ""
+	if len(indicators) > 0 {
+		prefix = fmt.Sprintf("[%s] ", strings.Join(indicators, ""))
+	}
+
+	return fmt.Sprintf("%s[%s][%s] %s -> %s", prefix, t.Type(), prioStr, t.gid, t.Storage.Name())
 }
 
 // Type implements core.Executable.
@@ -170,7 +210,8 @@ func NewTask(
 		Progress:    progressTracker,
 		Config:      DefaultTaskConfig(),
 		Stats: TaskStats{
-			StartTime: time.Now(),
+			StartTime:  time.Now(),
+			LastUpdate: time.Now(),
 		},
 	}
 
@@ -207,12 +248,15 @@ func (t *Task) UpdateStats(downloaded, total, speed int64, connections int) {
 
 	if total > 0 {
 		t.Stats.ProgressPct = (float64(downloaded) / float64(total)) * 100
-		remaining := total - downloaded
 		if speed > 0 {
+			remaining := total - downloaded
 			t.Stats.ETA = time.Duration(remaining/speed) * time.Second
 			t.Stats.IsStalled = false
-		} else if !lastUpdate.IsZero() && now.Sub(lastUpdate) > 30*time.Second {
-			t.Stats.IsStalled = true
+		} else {
+			t.Stats.ETA = -1
+			if !lastUpdate.IsZero() && now.Sub(lastUpdate) > 30*time.Second {
+				t.Stats.IsStalled = true
+			}
 		}
 	}
 }
@@ -239,18 +283,29 @@ func (t *Task) IncrementRetry() int {
 }
 
 func (t *Task) Cancel() {
-	if t.cancel == nil {
-		return
-	}
-	t.cancel()
+	t.cancelOnce.Do(func() {
+		if t.cancel == nil {
+			return
+		}
+		t.cancel()
+	})
 }
 
 func (t *Task) IsHealthy() bool {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
 
-	if time.Since(t.Stats.StartTime) > time.Minute && t.Stats.Downloaded == 0 {
+	if time.Since(t.Stats.StartTime) < time.Minute {
+		return true
+	}
+
+	if time.Since(t.Stats.LastUpdate) > time.Minute {
 		return false
 	}
-	return !t.Stats.IsStalled
+
+	if t.Stats.IsStalled {
+		return false
+	}
+
+	return true
 }
