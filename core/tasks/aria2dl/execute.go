@@ -223,9 +223,11 @@ func (t *Task) transferFileWithRetry(ctx context.Context, srcPath, destRelPath s
 			return ctx.Err()
 		}
 
-		if err := t.transferSingleFile(ctx, srcPath, destRelPath); err == nil {
+		err := t.transferSingleFile(ctx, srcPath, destRelPath)
+		if err == nil {
 			return nil
-		} else if os.IsNotExist(err) {
+		}
+		if os.IsNotExist(err) {
 			log.FromContext(ctx).Warn("Downloaded file not found", "path", srcPath)
 			return nil
 		}
